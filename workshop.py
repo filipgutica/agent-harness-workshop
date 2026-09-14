@@ -38,8 +38,8 @@ def dispatch_tool(action: dict) -> dict:
     parameters = action["parameters"]
     if set(parameters) != {"location"} or not isinstance(parameters["location"], str):
         raise ValueError("get_weather requires exactly one string parameter: location.")
-    # TODO 2: Call the registered tool with the validated location.
-    raise NotImplementedError("Complete checkpoint 2: dispatch_tool")
+    # Checkpoint 2: Call the registered tool with the validated location.
+    return tools[tool_name](location=parameters['location'])
 
 
 def run_agent(prompt: str) -> str:
