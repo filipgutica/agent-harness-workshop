@@ -10,6 +10,18 @@ from tests.support import FakeResponse
 
 
 class CallModelTests(unittest.TestCase):
+    def test_call_model_defaults_to_groq_gpt_oss_20b(self):
+        response = FakeResponse({"choices": [{"message": {"content": "Hello"}}]})
+        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}, clear=True), patch.object(
+            workshop, "urlopen", return_value=response
+        ) as request:
+            workshop.call_model([{"role": "user", "content": "Hello"}])
+
+        payload = json.loads(request.call_args.args[0].data)
+        self.assertEqual(payload["model"], "openai/gpt-oss-20b")
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("response_format", payload)
+
     def test_call_model_returns_the_model_message(self):
         response = FakeResponse(
             {"choices": [{"message": {"content": "Hello from the model"}}]}
@@ -18,7 +30,7 @@ class CallModelTests(unittest.TestCase):
 
         with patch.dict(
             os.environ,
-            {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_MODEL": "test-model"},
+            {"GROQ_API_KEY": "test-key", "GROQ_MODEL": "test-model"},
             clear=True,
         ), patch.object(workshop, "urlopen", return_value=response) as mocked_urlopen:
             result = workshop.call_model(messages)
@@ -27,7 +39,7 @@ class CallModelTests(unittest.TestCase):
         mocked_urlopen.assert_called_once()
         request = mocked_urlopen.call_args.args[0]
         timeout = mocked_urlopen.call_args.kwargs["timeout"]
-        self.assertEqual(request.full_url, "https://openrouter.ai/api/v1/chat/completions")
+        self.assertEqual(request.full_url, "https://api.groq.com/openai/v1/chat/completions")
         self.assertEqual(request.get_method(), "POST")
         self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
         self.assertEqual(request.get_header("Content-type"), "application/json")
@@ -55,7 +67,7 @@ class CallModelTests(unittest.TestCase):
             fp=None,
         )
 
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}), patch.object(
+        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}), patch.object(
             workshop, "urlopen", side_effect=error
         ):
             with self.assertRaisesRegex(RuntimeError, "500"):

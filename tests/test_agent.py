@@ -19,6 +19,10 @@ class RunAgentTests(unittest.TestCase):
 
         self.assertEqual(result, "No tool was needed.")
         self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0], [
+            {"role": "system", "content": workshop.SYSTEM_PROMPT},
+            {"role": "user", "content": "Say hello"},
+        ])
 
     def test_run_agent_puts_tool_results_back_into_conversation(self):
         tool_call = (
