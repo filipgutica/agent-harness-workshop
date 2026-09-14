@@ -48,19 +48,19 @@ def run_agent(prompt: str) -> str:
         {"role": "user", "content": prompt},
     ]
     for step in range(MAX_STEPS):
-        # TODO 3a: Send the conversation to the model.
-        raise NotImplementedError("Complete checkpoint 3a: call the model")
+        # Checkpoint 3a: Send the conversation to the model.
+        raw = call_model(messages)
         print("Model:", raw)
         action = parse_action(raw)
         messages.append({"role": "assistant", "content": raw})
         if action["action"] == "response":
             return action["content"]
-        # TODO 3b: Execute the requested tool.
-        raise NotImplementedError("Complete checkpoint 3b: dispatch the tool")
+        # Checkpoint 3b: Execute the requested tool.
+        result = dispatch_tool(action)
         tool_result = {"tool_result": {"tool": action["tool"], "result": result}}
         print("Tool result:", json.dumps(tool_result))
-        # TODO 3c: Add the result to the conversation for the next model call.
-        raise NotImplementedError("Complete checkpoint 3c: append the tool result")
+        # Checkpoint 3c: Add the result to the conversation for the next model call.
+        messages.append({'role':'user','content':json.dumps(tool_result)})
     raise RuntimeError(f"Stopped after {MAX_STEPS} model calls without a final response.")
 
 
