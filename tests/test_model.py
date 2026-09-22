@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-import workshop
+import helpers as workshop
 
 from tests.support import FakeResponse
 

@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+import helpers
 import workshop
 
 
@@ -27,7 +28,7 @@ class HarnessSafetyTests(unittest.TestCase):
         )
 
         with patch.object(workshop, "call_model", return_value=invalid_tool), patch.object(
-            workshop, "get_weather"
+            helpers, "get_weather"
         ) as weather:
             with self.assertRaises(ValueError):
                 workshop.run_agent("Do something dangerous")

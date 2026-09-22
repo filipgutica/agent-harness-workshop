@@ -74,7 +74,7 @@ The supplied model is `openai/gpt-oss-20b` on Groq; no model setting is required
 
 ```bash
 python -m unittest tests.test_cli tests.test_model tests.test_protocol -q
-python workshop.py --mode chat --prompt "Reply with: ready"
+python workshop.py --prompt "Reply with: ready"
 ```
 
 The offline checks should report **10 tests, OK**. The second command makes one live model request.
@@ -90,9 +90,9 @@ It should print a short reply without an error. Resolve any error before class.
 | HTTP 401 | Check that you entered a valid Groq key. |
 | HTTP 403 or unavailable model | Check your account's model access in Groq Console. |
 | HTTP 429 | Pause live calls and check [Groq limits](https://console.groq.com/docs/rate-limits). Offline tests still work. |
-| Invalid JSON in action mode | Copy the full system prompt again, then retry once. Ask the instructor if it still fails. |
-| `Complete checkpoint ...` | Replace the indicated TODO's `raise` line; do not add code below it. |
-| Indentation error | Use four spaces at TODO 2 and eight at TODOs 3a–3c. Do not use tabs. |
+| Invalid JSON after changing the prompt | Copy the full system prompt again, then retry once. Ask the instructor if it still fails. |
+| A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
+| Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
 | `my-workshop` branch already exists | Run `git switch my-workshop` to resume. |
 | Git opens a pager | Press `q` to return to the terminal. |
 | Network or certificate error | Check connectivity and your Python installation. Do not disable TLS verification. |
