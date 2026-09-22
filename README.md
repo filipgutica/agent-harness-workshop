@@ -1,91 +1,39 @@
 # Build an agent harness in Python
 
-Build a Python CLI that gives a language model access to current weather data. The model requests a tool. Your code runs it and returns the result to the model.
+A language model can request a tool, but your application must run it.
+In this **35-minute workshop**, you will connect a model to current Vancouver weather and watch the full exchange.
 
-This workshop is for BCIT CST term 3 students who know basic Python functions, dictionaries, JSON, HTTP, and Git. Plan for 35 minutes of class time, including checks, commits, and discussion. Complete the account and software setup in [SETUP.md](SETUP.md) before class.
+For BCIT CST term 3 students. You need basic Python and Git; the HTTP requests and validation are supplied.
 
-## What you will learn
+**Start with [SETUP.md](SETUP.md).** Complete setup before class, then return here in the same terminal.
+Only edit `workshop.py`. Leave the supplied helpers and tests unchanged.
 
-You will be able to explain and demonstrate:
+| Step | Time | What you will see |
+| --- | ---: | --- |
+| 0. Start and ask a question | 10 min | A model answer without current data |
+| 1. Define the protocol | 6 min | A tool request expressed as JSON |
+| 2. Connect the tool | 6 min | Python dispatching that request |
+| 3. Complete the loop | 10 min | Weather data returned to the model |
+| 4. Explain the trace | 3 min | How the harness controls execution |
 
-- why a model cannot reliably report current weather without fresh data;
-- how a system prompt defines a small communication protocol;
-- why the application executes a tool instead of the model;
-- how conversation history carries a tool result into the next model request; and
-- how validation and a step limit control an agent loop.
+## 0. Start and ask a question
 
-The application uses the Groq chat completions API and Open-Meteo. The weather value is the API's current estimate. The response includes the timestamp, units, and source so the model can describe the data accurately.
-
-## Start here
-
-Read [SETUP.md](SETUP.md) first. It covers Python, Git, the Groq key, and the class clone command. You do not need to install Python packages. The application uses Python 3.10 or newer and the standard library.
-
-For the local instructor copy, open a terminal and run:
+Create your working branch. If you are resuming, use `git switch my-workshop` instead.
 
 ```bash
-cd ~/code/agent-harness-workshop
-git switch main
-git switch -c workshop-your-name
-```
-
-For a class copy, clone the repository URL supplied by your instructor, enter the directory, and create the same branch. Replace `your-name` with your own name. Run all later commands from the repository directory.
-
-The `main` branch is the student starting point. The `solution` branch contains the completed application. `archive/long-workshop` preserves the earlier two-hour version. The `short-0` through `short-3` tags mark the current reference checkpoints. The older `checkpoint-0` through `checkpoint-5` tags belong to the archived exercise; do not use them for this workshop.
-
-The files you will use are:
-
-```text
-workshop.py       CLI and supplied helper functions
-tests/            offline checks grouped by behavior
-.env.example      variable names only; it is not loaded automatically
-SETUP.md          software, account, and key setup
-FACILITATOR.md    timing and teaching notes
-```
-
-## Commit rule
-
-At every checkpoint, follow this order:
-
-1. Run the listed checks.
-2. Run `git diff --check`.
-3. Review `git diff -- workshop.py`.
-4. Stage only `workshop.py` with `git add workshop.py`.
-5. Create the listed commit.
-6. Run `git status --short` and confirm the worktree is clean.
-
-Do not commit your API key. The baseline commit is intentionally empty. The three later commits contain the three small implementation changes.
-
-## Baseline check — 5 minutes
-
-Run the starter and its supplied-code checks:
-
-```bash
-python workshop.py --mode echo --prompt "Hello, harness"
-python -m unittest tests.test_cli tests.test_model tests.test_protocol -v
-```
-
-The first command prints `Echo: Hello, harness`. Read the five TODO locations near the top of `workshop.py`. The model call, action parser, weather function, and CLI are already supplied. You will change only the prompt, the dispatcher call, and three lines in the loop.
-
-## Bare model demo — 4 minutes
-
-Use the key from [SETUP.md](SETUP.md), then make two live calls:
-
-```bash
-python workshop.py --mode chat --prompt "Explain a Python dictionary in one sentence."
+git switch -c my-workshop
 python workshop.py --mode chat --prompt "What is the temperature in Vancouver right now?"
 ```
 
-Before each call, predict what the model can answer and what evidence it has. The second answer is not evidence of current conditions. The model has no weather tool in `chat` mode. It may state that it does not know, or it may give a plausible but unsupported answer. Ask what information the model received and who could fetch a current value.
-After the demo, record the baseline:
+The model might admit uncertainty or give a plausible temperature.
+Neither answer proves the current weather: `chat` mode has no weather tool.
+Find `call_model` in `workshop.py`. Notice the HTTP request and the returned assistant text.
 
-```bash
-git commit --allow-empty -m "chore: verify workshop baseline"
-git status --short
-```
+**Predict:** what information would the model need to answer reliably?
 
-## Checkpoint 1: describe the protocol — 7 minutes
+## 1. Define the protocol
 
-Replace the complete `SYSTEM_PROMPT` assignment in `workshop.py` with this block. Keep the triple quotes and copy the block exactly.
+At **TODO 1**, replace the entire `SYSTEM_PROMPT` assignment with this block:
 
 ```python
 SYSTEM_PROMPT = """You are a helpful assistant inside a Python application.
@@ -107,113 +55,133 @@ Do not invent weather readings. If the tool data is insufficient, say so.
 """
 ```
 
-Before running the action command, predict whether it will execute the weather request. Then run the protocol checks and inspect one raw action:
+Run this command. Predict whether it will fetch weather before you run it.
 
 ```bash
-python -m unittest tests.test_cli tests.test_model tests.test_protocol -v
 python workshop.py --mode action --prompt "What is the weather in Vancouver right now?"
 ```
 
-The action command should print model text and a validated `tool-call`. It does not execute the weather request. A prompt requests a format; `parse_action` still rejects malformed JSON and invalid fields. Live wording and action choice can vary, so the offline checks do not prove that a hosted model followed the prompt. If the model returns invalid JSON, use the [troubleshooting notes](SETUP.md#troubleshooting).
+**Check:** the output should contain a validated `tool-call` for `get_weather`.
+No weather request runs yet. The model has produced text that our program can interpret.
+A prompt requests JSON; the supplied parser rejects invalid output.
+If it fails, check the copied prompt and [troubleshoot](SETUP.md#troubleshooting).
 
-Commit the prompt change:
+**Commit now:**
 
 ```bash
 git diff --check
-git diff -- workshop.py
 git add workshop.py
 git commit -m "feat: define the model action protocol"
-git status --short
 ```
 
-## Checkpoint 2: dispatch the tool — 5 minutes
+## 2. Connect the tool
 
-In `dispatch_tool`, find the final TODO line. Replace that `raise NotImplementedError(...)` statement with this exact line:
+In `dispatch_tool`, replace the `raise NotImplementedError(...)` line under **TODO 2** with:
 
 ```python
-return tools[tool_name](location=parameters['location'])
+    return tools[tool_name](location=parameters["location"])
 ```
 
-The `tools` dictionary is the allowlist. The code checks the tool name and the parameter shape before this line runs. The model can name a tool, but it cannot call an arbitrary Python function.
-
-Run the dispatcher checks:
+Keep four spaces before `return`. The supplied code checks the tool name and arguments first.
+The `tools` dictionary determines which functions the model can request.
 
 ```bash
-python -m unittest tests.test_cli tests.test_model tests.test_protocol tests.test_weather -v
+python -m unittest tests.test_weather -v
 ```
 
-Commit the dispatcher change:
+**Check:** all five tests pass. These tests use fake weather responses and need no network.
+The same function calls Open-Meteo when the application runs live.
+
+**Explain:** which part chooses the tool, and which part executes it?
+
+**Commit now:**
 
 ```bash
 git diff --check
-git diff -- workshop.py
 git add workshop.py
 git commit -m "feat: dispatch the approved weather tool"
-git status --short
 ```
 
-## Checkpoint 3: complete the loop — 10 minutes
+## 3. Complete the loop
 
-Replace each of the three remaining `raise NotImplementedError(...)` statements in `run_agent`. Keep the existing indentation and use this mapping:
+In `run_agent`, replace the three `raise NotImplementedError(...)` lines separately.
+Keep eight spaces before each replacement.
 
-- TODO 3a: replace the line with `raw = call_model(messages)`.
-- TODO 3b: replace the line with `result = dispatch_tool(action)`.
-- TODO 3c: replace the line with `messages.append({'role':'user','content':json.dumps(tool_result)})`.
-
-These lines belong at three separate TODO locations, not together in one block:
+**TODO 3a — ask the model:**
 
 ```python
-raw = call_model(messages)
-result = dispatch_tool(action)
-messages.append({'role':'user','content':json.dumps(tool_result)})
+        raw = call_model(messages)
 ```
 
-Keep the surrounding supplied code. The loop already parses the model response, records the assistant message, returns a final response, prints the tool result, and stops after `MAX_STEPS` model calls.
+**TODO 3b — run the requested tool:**
 
-Run the full offline suite:
+```python
+        result = dispatch_tool(action)
+```
+
+**TODO 3c — return the tool result to the conversation:**
+
+```python
+        messages.append({"role": "user", "content": json.dumps(tool_result)})
+```
+
+Run the checks, then try the finished agent:
 
 ```bash
 python -m unittest discover -s tests -v
-```
-
-Then try one ordinary question and one weather question:
-
-```bash
-python workshop.py --mode agent --prompt "Explain a Python dictionary in one sentence."
 python workshop.py --mode agent --prompt "What is the weather in Vancouver right now?"
 ```
 
-Before running the weather request, predict what the second model request must contain. Watch the trace: model action, tool result, then the final model response. The second model request receives the original messages, the assistant's tool-call JSON, and a user message containing `tool_result`.
+**Check:** all 20 tests pass. The live trace should show:
 
-Commit the loop:
+```text
+Model:       a JSON tool request
+Tool result: weather readings, units, timestamp, and source
+Model:       a JSON response based on those readings
+Assistant:   the final answer
+```
+
+Compare the final answer with the tool result. Open-Meteo supplies a current weather estimate.
+The tests verify the loop; they cannot guarantee that the model uses every reading correctly.
+
+Try a question that needs no tool:
+
+```bash
+python workshop.py --mode agent --prompt "What is a Python dictionary?"
+```
+
+**Check:** it should answer without a `Tool result:` line.
+
+**Commit now:**
 
 ```bash
 git diff --check
-git diff -- workshop.py
 git add workshop.py
 git commit -m "feat: run the bounded agent loop"
 git status --short
 ```
 
-## Discuss — 4 minutes
+The last command should print nothing. You now have three implementation commits.
 
-Use this sequence to explain the harness:
+## 4. Explain the trace
 
-```text
-model #1 -> tool-call JSON -> Python dispatcher -> Open-Meteo -> tool result
-updated history -> model #2 -> final response
+Explain these to a partner using `run_agent`:
+
+1. Where does the weather result enter the next model request?
+2. Why does the conversation retain the original question and the assistant's tool request?
+3. What stops a model that keeps requesting tools? Find `MAX_STEPS`.
+
+The **harness** is the application code that manages this loop, its history, and its limits.
+Our `tool_result` user message is a teaching convention. Native tool-calling APIs use dedicated message fields;
+the application still executes local tools.
+
+## Stuck?
+
+Read the [setup troubleshooting](SETUP.md#troubleshooting), or inspect the reference without changing your files:
+
+```bash
+git show origin/solution:workshop.py
 ```
 
-Ask:
-
-- What does the model know before the weather request?
-- Is a `tool-call` JSON object the same as running a tool?
-- What would happen if `MAX_STEPS` did not exist?
-
-The user-role `tool_result` object is a teaching convention. Provider-native tool calling uses dedicated fields, but the application still validates requests, runs local tools, and controls the loop.
-
-## API references
-
-- [Groq quickstart](https://console.groq.com/docs/quickstart)
-- [Groq rate limits](https://console.groq.com/docs/rate-limits)
-- [Open-Meteo API](https://open-meteo.com/en/docs)
+Use `solution:workshop.py` in the original local repository. Press `q` to close Git's pager.
+[Facilitator notes and reference checkpoints](FACILITATOR.md) are for the instructor.
