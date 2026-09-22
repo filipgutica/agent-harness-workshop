@@ -2,66 +2,75 @@
 
 ## Before teaching
 
-Ask students to complete [SETUP.md](SETUP.md), including the live Groq check, before class.
-The class target is **35 minutes**. Confirm this with a timed pilot; API latency and student familiarity will affect the pace.
+Ask students to complete [SETUP.md](SETUP.md), including its live Groq check, before class.
+Pilot the README from a fresh clone. The target is **35 minutes**, not a measured completion time.
+Students need basic functions, dictionaries, conditionals, loops, and Git.
 
-Run the exercise from a fresh GitHub clone on `main`, following only the README.
-Check that students can distinguish a JSON tool request from an executed tool.
-For weather, compare the final answer against the returned readings, units, timestamp, and source.
-
-The default model is `openai/gpt-oss-20b` on Groq. Check [model access and limits](https://console.groq.com/docs/rate-limits) before class.
-If you change the model, pilot it first and give students the exact `GROQ_MODEL` environment value.
-Each student should use their own key. A weather round trip normally uses two model requests.
+The starter is 15 lines. It runs immediately and has no TODO exceptions.
+Students edit only `workshop.py`; `helpers.py` contains the existing HTTP requests, validation, and terminal handling.
+Explain that moving HTTP code into another file does not make it an agent framework.
+The model still receives raw chat-completion requests.
 
 ## Schedule
 
 | Part | Minutes | Teaching focus |
 | --- | ---: | --- |
-| Start and bare model demo | 10 | Five minutes to settle in and check setup, then five to inspect a model call. |
-| Protocol | 6 | The model produces a request; nothing executes yet. |
-| Dispatcher | 6 | Python validates and executes an allowed tool. |
-| Loop | 10 | The tool result enters the next model request. |
-| Discussion | 3 | History and execution limits belong to the harness. |
+| Starter | 5 | Input, two messages, a model call, output. |
+| JSON prompt | 7 | A tool request is still just text. |
+| Tool execution | 8 | Python validates the request and fetches weather. |
+| Agent loop | 12 | Add both the model request and tool result to history. |
+| Discussion | 3 | Explain what the harness owns. |
 
-Students make three commits, one after each implementation checkpoint.
-The HTTP, parser, weather, and CLI code is supplied. Keep attention on the prompt and the four missing lines.
-Use the README's prediction and explanation questions before moving on.
+Each of the three edits leaves a runnable program. Students commit after each successful stage.
+They replace complete blocks instead of filling scattered blanks.
+Keep the same command, `python workshop.py`, throughout.
 
-A bare model may honestly admit it lacks current data. The demo does not depend on it hallucinating.
-Open-Meteo returns current weather estimates rather than guaranteed instantaneous station observations.
+The tool-execution stage intentionally prints raw weather JSON. It does not send that data back to the model yet.
+The last stage adds the loop and produces a model-written answer.
+Use that difference to explain why a tool call and an agent loop are separate concepts.
 
-## When a student gets stuck
+## Verification and troubleshooting
 
-Use [SETUP troubleshooting](SETUP.md#troubleshooting). If live access fails, pair the student with someone whose setup works.
-Offline tests prove application behavior with controlled responses; they do not prove hosted-model decisions or factual accuracy.
-Do not spend the session repeatedly retrying a model that ignores the protocol.
+The setup suite runs 10 tests against the supplied helpers and CLI.
+Run the complete 20-test suite only after the final stage:
 
-The `tool_result` user message is our custom protocol, not the provider's native tool format.
-Native tool calling is a closing comparison or later exercise. Keep extra tools and retries out of the core session.
+```bash
+python -m unittest discover -s tests -v
+```
 
-## Reference code
+The agent tests describe the final behavior and will fail on the starter or intermediate stages.
+All tests are offline. They cannot prove that a hosted model follows the prompt or uses readings accurately.
+Compare the live final answer with the tool's readings, units, timestamp, and source.
+Open-Meteo returns current estimates rather than guaranteed instantaneous station observations.
 
-In a GitHub clone, inspect the completed source without switching away from unfinished work:
+Check Groq model access and [rate limits](https://console.groq.com/docs/rate-limits) before class.
+The default is `openai/gpt-oss-20b`. If you change `GROQ_MODEL`, pilot the replacement first.
+A successful weather interaction normally uses two model requests. Each student should use their own key.
+If access fails, use [setup troubleshooting](SETUP.md#troubleshooting) and pair the student with someone whose setup works.
+
+An honest admission of uncertainty is a valid starter result; the lesson does not depend on hallucination.
+Native tool calling, additional tools, and retries belong in a later exercise.
+
+## Branches and the reference solution
+
+GitHub has one starter branch, `main`, and one completed branch, `solution`.
+`origin/solution` is Git's reference to the GitHub branch; it is not a second solution.
+
+From a clone, read the completed source without replacing student work:
 
 ```bash
 git show origin/solution:workshop.py
 ```
 
-For a separate runnable solution checkout, from the cloned repository:
+To run it in a separate directory:
 
 ```bash
 git worktree add --detach ../agent-harness-workshop-solution origin/solution
 cd ../agent-harness-workshop-solution
 python -m unittest discover -s tests -v
-python workshop.py --mode agent --prompt "What is the weather in Vancouver right now?"
+python workshop.py
 ```
 
-Use the same terminal and active Python environment as setup so the key and interpreter remain available.
-In the original local repository, replace `origin/solution` with `solution`.
-
-The `short-0` through `short-3` tags preserve the starter, protocol, dispatcher, and loop reference code.
-Use the current README for instructions; tagged documentation may describe an earlier presentation of the same exercise.
-The old `checkpoint-*` tags and `archive/long-workshop` branch belong to the earlier long exercise.
-Keep archive references out of the student path.
-
-When publishing, include `main`, `solution`, and the four `short-*` tags. The local archive need not be published.
+Keep the setup terminal open so its Python environment and Groq key remain available.
+Older `short-*` tags and the local `archive/long-workshop` branch preserve previous versions.
+They are historical references, not steps in the current exercise. Do not direct students to them.

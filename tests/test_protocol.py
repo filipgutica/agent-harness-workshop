@@ -1,7 +1,7 @@
 import json
 import unittest
 
-import workshop
+import helpers as workshop
 
 
 class ParseActionTests(unittest.TestCase):

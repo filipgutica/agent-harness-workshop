@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-import workshop
+import helpers as workshop
 
 from tests.support import FakeResponse, weather_response
 

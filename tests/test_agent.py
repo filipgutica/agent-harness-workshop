@@ -3,6 +3,7 @@ import unittest
 from copy import deepcopy
 from unittest.mock import patch
 
+import helpers
 import workshop
 
 
@@ -43,7 +44,7 @@ class RunAgentTests(unittest.TestCase):
             "units": {"temperature_2m": "°C"},
         }
         with patch.object(workshop, "call_model", side_effect=fake_call_model), patch.object(
-            workshop, "get_weather", return_value=tool_result
+            helpers, "get_weather", return_value=tool_result
         ):
             result = workshop.run_agent("What is the weather in Vancouver?")
 
