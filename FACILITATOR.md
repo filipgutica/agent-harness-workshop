@@ -110,12 +110,29 @@ From a clone, read the original tool loop without replacing student work:
 git show origin/solution:workshop.py
 ```
 
-To run it in a separate directory:
+To run it in a separate directory, run one code block at a time, in order.
+
+Create a worktree for the reference branch:
 
 ```bash
 git worktree add --detach ../agent-harness-workshop-solution origin/solution
+```
+
+Move into that directory:
+
+```bash
 cd ../agent-harness-workshop-solution
+```
+
+Run its offline tests:
+
+```bash
 python -m unittest discover -s tests -v
+```
+
+Run the reference program:
+
+```bash
 python workshop.py
 ```
 

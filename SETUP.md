@@ -7,11 +7,23 @@ If you need them, install [Python](https://www.python.org/downloads/) and [Git](
 
 ## 1. Clone the repo and create your branch
 
-Open a terminal in a directory where you keep projects. Run these commands one at a time:
+Open a terminal in a directory where you keep projects. Run one code block at a time, in order.
+
+Clone the starter:
 
 ```bash
 git clone --branch main https://github.com/filipgutica/agent-harness-workshop.git
+```
+
+Move into the repo folder:
+
+```bash
 cd agent-harness-workshop
+```
+
+Create your branch:
+
+```bash
 git switch -c my-workshop
 ```
 
@@ -21,23 +33,57 @@ If you already have a copy with edits, use a separate directory for a fresh clon
 
 ## 2. Prepare Python
 
-Use the commands for your operating system.
+Use the commands for your operating system. Run one code block at a time, in order.
 
 ### macOS / Linux
 
+Check that Python is version 3.10 or newer:
+
 ```bash
 python3 --version
+```
+
+Check that Git is installed:
+
+```bash
 git --version
+```
+
+Create the virtual environment:
+
+```bash
 python3 -m venv .venv
+```
+
+Activate it:
+
+```bash
 source .venv/bin/activate
 ```
 
 ### Windows PowerShell
 
+Check that Python is version 3.10 or newer:
+
 ```powershell
 py -3 --version
+```
+
+Check that Git is installed:
+
+```powershell
 git --version
+```
+
+Create the virtual environment:
+
+```powershell
 py -3 -m venv .venv
+```
+
+Activate it:
+
+```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -68,12 +114,22 @@ Start Bash first, even if your usual shell is Zsh:
 bash
 ```
 
-Then run these commands one at a time. Paste your key when asked, then press Enter.
+Then run one code block at a time. Paste your key when asked, then press Enter.
 The terminal will not display the key as you type or paste it.
 
 ```bash
 read -r -s -p "Groq API key: " GROQ_API_KEY
+```
+
+Print a new line after the hidden prompt:
+
+```bash
 printf '\n'
+```
+
+Make the key available to Python:
+
+```bash
 export GROQ_API_KEY
 ```
 
@@ -81,9 +137,21 @@ Stay in this Bash shell for the workshop. Running `exit` discards its key variab
 
 ### Windows PowerShell
 
+Run one code block at a time. Enter your key through the hidden prompt:
+
 ```powershell
 $secret = Read-Host "Groq API key" -AsSecureString
+```
+
+Make the key available to Python:
+
+```powershell
 $env:GROQ_API_KEY = [System.Net.NetworkCredential]::new('', $secret).Password
+```
+
+Remove the temporary variable:
+
+```powershell
 Remove-Variable secret
 ```
 
@@ -122,10 +190,17 @@ During class, use this terminal to run the program; an editor's Run button may n
 | Git opens a pager | Press `q` to return to the terminal. |
 | Network or certificate error | Check connectivity and your Python installation. Do not disable TLS verification. |
 
-If Git asks for your identity, run these with your own details, then retry the commit:
+If Git asks for your identity, run each command with your own details, then retry the commit.
+
+Set your name:
 
 ```bash
 git config user.name "Your Name"
+```
+
+Set your email:
+
+```bash
 git config user.email "you@example.com"
 ```
 

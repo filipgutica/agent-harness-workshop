@@ -37,6 +37,7 @@ There is no weather request. The model may admit uncertainty or give a plausible
 
 Each run handles one question and exits. Save `workshop.py`, then use `python workshop.py` at every step below.
 Run it in the setup terminal so Python can use your API key.
+Run terminal commands one code block at a time, in order.
 
 ## 1. Ask for a tool request — 6 minutes
 
@@ -76,6 +77,9 @@ If it adds extra text or invalid JSON, check your prompt and retry once.
 
 ```bash
 git add workshop.py
+```
+
+```bash
 git commit -m "feat: ask the model for structured actions"
 ```
 
@@ -131,6 +135,9 @@ Close that file without editing it.
 
 ```bash
 git add workshop.py
+```
+
+```bash
 git commit -m "feat: execute the weather tool request"
 ```
 
@@ -195,8 +202,17 @@ Run the full test suite after the next step. Its retry tests expect the complete
 
 ```bash
 git diff --check
+```
+
+```bash
 git add workshop.py
+```
+
+```bash
 git commit -m "feat: return tool results through an agent loop"
+```
+
+```bash
 git status --short
 ```
 
@@ -287,8 +303,17 @@ They use fake responses, do not spend API quota, and cannot prove the accuracy o
 
 ```bash
 git diff --check
+```
+
+```bash
 git add workshop.py
+```
+
+```bash
 git commit -m "feat: retry invalid model actions with a bounded limit"
+```
+
+```bash
 git status --short
 ```
 
@@ -439,13 +464,24 @@ The answer and tool sequence should still match the core exercise.
 
 ```bash
 python -m unittest discover -s tests -v
-git diff --check
-git add workshop.py
-git commit -m "feat: enforce a schema for model actions"
 ```
 
 All **22 tests** should still pass. They check the application with fake model replies;
 they do not verify the hosted API's schema enforcement.
+
+**Commit now:**
+
+```bash
+git diff --check
+```
+
+```bash
+git add workshop.py
+```
+
+```bash
+git commit -m "feat: enforce a schema for model actions"
+```
 
 **Explain:** why do we still need `parse_action`, `dispatch_tool`, and both limits?
 A schema controls structure. This schema still permits an unknown tool name or an empty answer;
