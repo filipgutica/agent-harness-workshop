@@ -2,7 +2,7 @@
 
 You need **Python 3.10+**, **Git**, a **Groq API key**, and internet access.
 There are no Python packages to install. Complete these steps before class;
-account creation and software installation are outside the 35-minute exercise.
+account creation and software installation are outside the 40-minute exercise.
 If you need them, install [Python](https://www.python.org/downloads/) and [Git](https://git-scm.com/downloads/) before starting.
 
 ## 1. Clone the repo and create your branch
@@ -102,7 +102,7 @@ The wording can vary. Resolve any error before class.
 You are ready when you have your own branch, passing offline checks, and a successful live reply.
 During class, use this terminal to run the program; an editor's Run button may not have your API key.
 
-**Next: [start the workshop](README.md#0-try-the-starter--5-minutes).**
+**Next: [start the workshop](README.md#0-try-the-starter--4-minutes).**
 
 ## Troubleshooting
 
@@ -112,7 +112,8 @@ During class, use this terminal to run the program; an editor's Run button may n
 | HTTP 401 | Check that you entered a valid Groq key. |
 | HTTP 403 or unavailable model | Check your account's model access in Groq Console. |
 | HTTP 429 | Pause live calls and check [Groq limits](https://console.groq.com/docs/rate-limits). Offline tests still work. |
-| Invalid JSON after changing the prompt | Copy the full system prompt again, then retry once. Ask the instructor if it still fails. |
+| Invalid JSON before workshop step 4 | Copy the full system prompt again, then rerun once. Ask the instructor if it still fails. |
+| Formatting retries are exhausted after workshop step 4 | Check the prompt and both functions against the complete README step 4 block. Do not keep increasing the retry limit. |
 | A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
 | Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
 | `my-workshop` branch already exists | Run `git switch my-workshop` to resume. |

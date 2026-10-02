@@ -11,7 +11,7 @@ class RunAgentTests(unittest.TestCase):
     def test_run_agent_returns_a_direct_model_response(self):
         calls = []
 
-        def fake_call_model(messages):
+        def fake_call_model(messages, *, response_format=None):
             calls.append(deepcopy(messages))
             return '{"action":"response","content":"No tool was needed."}'
 
@@ -33,7 +33,7 @@ class RunAgentTests(unittest.TestCase):
         final_response = '{"action":"response","content":"It is 14.5 C."}'
         calls = []
 
-        def fake_call_model(messages):
+        def fake_call_model(messages, *, response_format=None):
             calls.append(deepcopy(messages))
             return tool_call if len(calls) == 1 else final_response
 

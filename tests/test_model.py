@@ -23,31 +23,48 @@ class CallModelTests(unittest.TestCase):
         self.assertNotIn("response_format", payload)
 
     def test_call_model_returns_the_model_message(self):
-        response = FakeResponse(
-            {"choices": [{"message": {"content": "Hello from the model"}}]}
-        )
         messages = [{"role": "user", "content": "Say hello"}]
+        schema_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "greeting",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"greeting": {"type": "string"}},
+                    "required": ["greeting"],
+                    "additionalProperties": False,
+                },
+            },
+        }
 
-        with patch.dict(
-            os.environ,
-            {"GROQ_API_KEY": "test-key", "GROQ_MODEL": "test-model"},
-            clear=True,
-        ), patch.object(workshop, "urlopen", return_value=response) as mocked_urlopen:
-            result = workshop.call_model(messages)
+        for response_format in (None, {"type": "json_object"}, schema_format):
+            with self.subTest(response_format=response_format):
+                content = "Hello from the model" if response_format is None else '{"greeting":"Hello"}'
+                response = FakeResponse({"choices": [{"message": {"content": content}}]})
+                with patch.dict(
+                    os.environ,
+                    {"GROQ_API_KEY": "test-key", "GROQ_MODEL": "test-model"},
+                    clear=True,
+                ), patch.object(workshop, "urlopen", return_value=response) as mocked_urlopen:
+                    if response_format is None:
+                        result = workshop.call_model(messages)
+                    else:
+                        result = workshop.call_model(messages, response_format=response_format)
 
-        self.assertEqual(result, "Hello from the model")
-        mocked_urlopen.assert_called_once()
-        request = mocked_urlopen.call_args.args[0]
-        timeout = mocked_urlopen.call_args.kwargs["timeout"]
-        self.assertEqual(request.full_url, "https://api.groq.com/openai/v1/chat/completions")
-        self.assertEqual(request.get_method(), "POST")
-        self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
-        self.assertEqual(request.get_header("Content-type"), "application/json")
-        self.assertEqual(timeout, 30)
-        self.assertEqual(
-            json.loads(request.data.decode("utf-8")),
-            {"model": "test-model", "messages": messages, "max_tokens": 2048},
-        )
+                self.assertEqual(result, content)
+                mocked_urlopen.assert_called_once()
+                request = mocked_urlopen.call_args.args[0]
+                timeout = mocked_urlopen.call_args.kwargs["timeout"]
+                self.assertEqual(request.full_url, "https://api.groq.com/openai/v1/chat/completions")
+                self.assertEqual(request.get_method(), "POST")
+                self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
+                self.assertEqual(request.get_header("Content-type"), "application/json")
+                self.assertEqual(timeout, 30)
+                expected_payload = {"model": "test-model", "messages": messages, "max_tokens": 2048}
+                if response_format is not None:
+                    expected_payload["response_format"] = response_format
+                self.assertEqual(json.loads(request.data.decode("utf-8")), expected_payload)
 
     def test_call_model_requires_an_api_key_before_making_a_request(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(

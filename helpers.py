@@ -9,10 +9,12 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-def call_model(messages: list[dict[str, str]]) -> str:
+def call_model(messages: list[dict[str, str]], *, response_format: dict | None = None) -> str:
     """Send the conversation to Groq and return the assistant's text.
 
     Read the API key and optional model override from the terminal environment.
+    Forward response_format when the optional exercise requests JSON or a schema.
+    Without it, use ordinary text output for the core exercise.
     Raise RuntimeError if the request fails or the reply has no usable text.
     This function does not interpret tool requests or execute tools.
     """
@@ -24,6 +26,8 @@ def call_model(messages: list[dict[str, str]]) -> str:
         "messages": messages,
         "max_tokens": 2048,
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
     request = Request(
         "https://api.groq.com/openai/v1/chat/completions",
         # HTTP carries JSON bytes; the rest of the workshop uses Python objects.
