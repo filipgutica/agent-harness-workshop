@@ -108,32 +108,15 @@ Enter it through the hidden prompt below. Do not paste it into source files or c
 
 ### macOS / Linux
 
-Start Bash first, even if your usual shell is Zsh:
-
-```bash
-bash
-```
-
-Then run one code block at a time. Paste your key when asked, then press Enter.
+Stay in your current shell. This command works in both Bash and Zsh.
+Paste your key when asked, then press Enter.
 The terminal will not display the key as you type or paste it.
 
 ```bash
-read -r -s -p "Groq API key: " GROQ_API_KEY
+export GROQ_API_KEY="$(python -c 'import getpass; print(getpass.getpass("Groq API key: "))')"
 ```
 
-Print a new line after the hidden prompt:
-
-```bash
-printf '\n'
-```
-
-Make the key available to Python:
-
-```bash
-export GROQ_API_KEY
-```
-
-Stay in this Bash shell for the workshop. Running `exit` discards its key variable.
+This uses Python's standard-library hidden prompt and makes the key available to the workshop.
 
 ### Windows PowerShell
 
