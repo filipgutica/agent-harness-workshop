@@ -60,6 +60,9 @@ class CallModelTests(unittest.TestCase):
                 self.assertEqual(request.get_method(), "POST")
                 self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
                 self.assertEqual(request.get_header("Content-type"), "application/json")
+                user_agent = request.get_header("User-agent", "")
+                self.assertTrue(user_agent.strip())
+                self.assertFalse(user_agent.startswith("Python-urllib"))
                 self.assertEqual(timeout, 30)
                 expected_payload = {"model": "test-model", "messages": messages, "max_tokens": 2048}
                 if response_format is not None:

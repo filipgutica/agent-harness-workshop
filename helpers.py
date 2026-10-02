@@ -32,7 +32,12 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
         "https://api.groq.com/openai/v1/chat/completions",
         # HTTP carries JSON bytes; the rest of the workshop uses Python objects.
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            # Identify this client; Groq rejects urllib's default User-Agent.
+            "User-Agent": "agent-harness-workshop/1.0",
+        },
         method="POST",
     )
     try:
