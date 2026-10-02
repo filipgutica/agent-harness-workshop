@@ -10,6 +10,12 @@ from urllib.request import Request, urlopen
 
 
 def call_model(messages: list[dict[str, str]]) -> str:
+    """Send the conversation to Groq and return the assistant's text.
+
+    Read the API key and optional model override from the terminal environment.
+    Raise RuntimeError if the request fails or the reply has no usable text.
+    This function does not interpret tool requests or execute tools.
+    """
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key or api_key == "replace-with-your-own-key":
         raise RuntimeError("Set GROQ_API_KEY in your terminal first.")
@@ -20,6 +26,7 @@ def call_model(messages: list[dict[str, str]]) -> str:
     }
     request = Request(
         "https://api.groq.com/openai/v1/chat/completions",
+        # HTTP carries JSON bytes; the rest of the workshop uses Python objects.
         data=json.dumps(payload).encode("utf-8"),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
@@ -37,6 +44,7 @@ def call_model(messages: list[dict[str, str]]) -> str:
     except (ValueError, UnicodeError) as error:
         raise RuntimeError("Model API returned an invalid JSON response.") from error
     try:
+        # Groq wraps the assistant's text inside choices[0].message.content.
         choice = data["choices"][0]
         if choice.get("finish_reason") == "length":
             raise RuntimeError("Model output was truncated. Try a shorter prompt or another model.")
@@ -49,6 +57,12 @@ def call_model(messages: list[dict[str, str]]) -> str:
 
 
 def parse_action(raw: str) -> dict:
+    """Convert model text into a validated response or tool-call dictionary.
+
+    Require the workshop's agreed JSON fields before the harness uses them.
+    Raise ValueError for invalid JSON or an unexpected shape. Tool names and
+    tool-specific arguments are checked separately by dispatch_tool.
+    """
     try:
         action = json.loads(raw)
     except ValueError as error:
@@ -73,6 +87,12 @@ def parse_action(raw: str) -> dict:
 
 
 def get_weather(*, location: str) -> dict:
+    """Fetch current weather estimates for Vancouver from Open-Meteo.
+
+    Return readings, units, a timestamp, and source attribution for the model.
+    Reject other locations with ValueError; report API failures or missing data
+    with RuntimeError. Fixed coordinates keep this workshop to one city.
+    """
     if not isinstance(location, str) or location.strip().lower() != "vancouver":
         raise ValueError("Weather supports only Vancouver.")
     query = urlencode({
@@ -100,6 +120,7 @@ def get_weather(*, location: str) -> dict:
         raise RuntimeError("Weather API response is missing current conditions or units.")
     if not isinstance(current.get("time"), str) or not current["time"].strip():
         raise RuntimeError("Weather API response is missing its timestamp.")
+    # Check that the model will receive every requested reading and its unit.
     for field in ("temperature_2m", "apparent_temperature", "precipitation"):
         if type(current.get(field)) not in (int, float) or not isinstance(units.get(field), str):
             raise RuntimeError(f"Weather API response is missing a reading or unit: {field}.")
@@ -107,6 +128,12 @@ def get_weather(*, location: str) -> dict:
 
 
 def dispatch_tool(action: dict) -> dict:
+    """Execute an allowed tool request after parse_action validates its shape.
+
+    Check the tool name and its arguments, then return the tool's result.
+    Raise ValueError for an unknown tool or invalid arguments. The registry
+    below is the list of functions the model may request; Python runs them.
+    """
     tools = {"get_weather": get_weather}
     tool_name = action["tool"]
     if tool_name not in tools:
@@ -114,12 +141,17 @@ def dispatch_tool(action: dict) -> dict:
     parameters = action["parameters"]
     if set(parameters) != {"location"} or not isinstance(parameters["location"], str):
         raise ValueError("get_weather requires exactly one string parameter: location.")
-    # Checkpoint 2: Call the registered tool with the validated location.
+    # Look up a known function rather than executing code supplied by the model.
     return tools[tool_name](location=parameters['location'])
 
 
 def run_cli(answer):
-    """Read one question, call the student's function, and print its answer."""
+    """Read one question, pass it to the student's function, and print its answer.
+
+    The answer argument is a function, such as run_agent, supplied by workshop.py.
+    Accept --prompt or interactive input, show expected errors, and exit after
+    one question. Keeping terminal handling here lets students focus on the loop.
+    """
     parser = argparse.ArgumentParser(description="Ask your workshop assistant a question.")
     parser.add_argument("--prompt", help="Omit to type your question interactively")
     args = parser.parse_args()

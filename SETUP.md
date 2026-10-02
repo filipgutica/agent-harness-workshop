@@ -1,20 +1,23 @@
 # Setup before class
 
 You need **Python 3.10+**, **Git**, a **Groq API key**, and internet access.
-There are no Python packages to install. Allow extra time for account creation and software installation.
+There are no Python packages to install. Complete these steps before class;
+account creation and software installation are outside the 35-minute exercise.
+If you need them, install [Python](https://www.python.org/downloads/) and [Git](https://git-scm.com/downloads/) before starting.
 
-## 1. Clone the workshop
+## 1. Clone the repo and create your branch
 
-On the GitHub repository page, select **Code → HTTPS** and copy the clone URL.
-Replace `REPOSITORY_URL` below with that URL. Run these commands in a directory where you keep projects:
+Open a terminal in a directory where you keep projects. Run these commands one at a time:
 
 ```bash
-git clone REPOSITORY_URL agent-harness-workshop
+git clone --branch main https://github.com/filipgutica/agent-harness-workshop.git
 cd agent-harness-workshop
+git switch -c my-workshop
 ```
 
-Already have a local copy? Open its directory instead. Keep using this terminal for the remaining steps.
-Use a fresh clone for a trial run so you start with the student version on `main`.
+`main` is the starter. `my-workshop` is your local branch for the exercise; you do not need to push it to GitHub.
+Open the `agent-harness-workshop` folder in your editor. Keep this terminal open, in that folder, for the remaining steps.
+If you already have a copy with edits, use a separate directory for a fresh clone.
 
 ## 2. Prepare Python
 
@@ -41,17 +44,34 @@ py -3 -m venv .venv
 If activation is blocked, use `.\.venv\Scripts\python.exe` instead of `python` in every later command.
 You do not need to change the execution policy.
 
-If Python or Git is missing, install it before continuing.
+The virtual environment keeps this workshop's Python session separate from other projects.
+
+Check the supplied code before adding your key:
+
+```bash
+python -m unittest tests.test_cli tests.test_model tests.test_protocol -q
+```
+
+Expect **10 tests, OK**. These checks run offline and do not need an API key.
+The full test suite is for the completed exercise, so do not run it yet.
 
 ## 3. Set your Groq key
 
-Create a key at [Groq Console](https://console.groq.com/keys).
+Sign in to [Groq Console](https://console.groq.com/keys) and create your own API key.
 Enter it through the hidden prompt below. Do not paste it into source files or commits.
 
 ### macOS / Linux
 
+Start Bash first, even if your usual shell is Zsh:
+
 ```bash
 bash
+```
+
+Then run these commands one at a time. Paste your key when asked, then press Enter.
+The terminal will not display the key as you type or paste it.
+
+```bash
 read -r -s -p "Groq API key: " GROQ_API_KEY
 printf '\n'
 export GROQ_API_KEY
@@ -68,19 +88,21 @@ Remove-Variable secret
 ```
 
 The key lasts for this terminal session. The application does not load `.env` files.
-The supplied model is `openai/gpt-oss-20b` on Groq; no model setting is required.
+The supplied model is [`openai/gpt-oss-20b` on Groq](https://console.groq.com/docs/models); no model setting is required.
 
 ## 4. Check setup
 
 ```bash
-python -m unittest tests.test_cli tests.test_model tests.test_protocol -q
 python workshop.py --prompt "Reply with: ready"
 ```
 
-The offline checks should report **10 tests, OK**. The second command makes one live model request.
-It should print a short reply without an error. Resolve any error before class.
+This command makes one live model request. Expect `Assistant:` followed by a short reply without an error.
+The wording can vary. Resolve any error before class.
 
-**Next: [start the workshop](README.md#0-start-and-ask-a-question).**
+You are ready when you have your own branch, passing offline checks, and a successful live reply.
+During class, use this terminal to run the program; an editor's Run button may not have your API key.
+
+**Next: [start the workshop](README.md#0-try-the-starter--5-minutes).**
 
 ## Troubleshooting
 
@@ -94,6 +116,8 @@ It should print a short reply without an error. Resolve any error before class.
 | A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
 | Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
 | `my-workshop` branch already exists | Run `git switch my-workshop` to resume. |
+| Python cannot find `workshop.py` or `tests` | Run the command from the `agent-harness-workshop` folder. |
+| A new terminal cannot find `python` or your key | Activate `.venv` and repeat step 3 in that terminal. |
 | Git opens a pager | Press `q` to return to the terminal. |
 | Network or certificate error | Check connectivity and your Python installation. Do not disable TLS verification. |
 

@@ -1,20 +1,29 @@
 # Build an agent harness in Python
 
-Start with a 15-line program that asks a model a question. Then give it a weather tool.
+Start with a small program that asks a model a question. Then give it a weather tool.
 By the end, you will see how your Python code turns a model's tool request into an action.
 
-**35 minutes · Python · Groq · BCIT CST term 3**
+**About 35 minutes after setup · Python · Groq · BCIT CST term 4**
 
-First, complete [SETUP.md](SETUP.md). Then open `workshop.py`.
-That is the only file you will edit. The supplied `helpers.py` handles HTTP requests, validation, and terminal input.
-It uses ordinary Python, not an agent framework.
+**Start here:** follow [SETUP.md](SETUP.md) to clone the repo, create your own branch, and check your API access.
+Then return here for the in-class exercise. You should know functions, dictionaries, conditionals, loops, and basic Git commands.
+
+| File | Your role |
+| --- | --- |
+| `workshop.py` | Edit this file as you follow the three steps below. |
+| `helpers.py` | Read the supplied functions when prompted. HTTP, validation, and terminal input are already implemented. |
+| `tests/` | Run the offline checks. No test edits are needed. |
+
+A **tool** is a function your application makes available to the model.
+A **tool request** is the model's description of which function to call and what arguments to pass.
+The **harness** is your code that manages messages, runs allowed tools, and decides when to stop.
+We use Python's standard library so you can see these parts directly.
 
 ## 0. Try the starter — 5 minutes
 
-Create a branch for your work:
+With setup complete and your `my-workshop` branch checked out, open `workshop.py` and run:
 
 ```bash
-git switch -c my-workshop
 python workshop.py
 ```
 
@@ -25,7 +34,8 @@ There is no weather request. The model may admit uncertainty or give a plausible
 
 **Predict:** what would the application need to add?
 
-Each run handles one question and exits. Use `python workshop.py` at every step below.
+Each run handles one question and exits. Save `workshop.py`, then use `python workshop.py` at every step below.
+Run it in the setup terminal so Python can use your API key.
 
 ## 1. Ask for a tool request — 7 minutes
 
@@ -50,6 +60,10 @@ After receiving weather data, answer using its values, units, time, and source.
 Do not invent weather readings. If the tool data is insufficient, say so.
 """
 ```
+
+The two JSON shapes are our agreement between the model and Python.
+`response` means "show this answer"; `tool-call` means "run this function with these parameters."
+Changing the prompt describes a tool, but does not give the model a way to run it.
 
 Run `python workshop.py` and ask the same weather question.
 
@@ -78,17 +92,20 @@ Keep `SYSTEM_PROMPT` above it and the `if __name__ == "__main__":` block below i
 
 ```python
 def run_agent(question):
+    """Ask the model for an action, then return an answer or raw tool data."""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     reply = call_model(messages)
     print("Model:", reply)
+    # Convert the model's text into a dictionary and check the agreed JSON shape.
     action = parse_action(reply)
 
     if action["action"] == "response":
         return action["content"]
 
+    # Python runs the allowed function; the model has only requested it.
     result = dispatch_tool(action)
     return json.dumps(result, indent=2)
 ```
@@ -122,10 +139,11 @@ Replace `run_agent` with the block below, including the `MAX_STEPS` line.
 Keep your imports, system prompt, and bottom `if` block.
 
 ```python
-MAX_STEPS = 5
+MAX_STEPS = 5  # Limit model calls so repeated tool requests cannot run forever.
 
 
 def run_agent(question):
+    """Keep sending tool results to the model until it answers or hits the limit."""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
@@ -134,6 +152,7 @@ def run_agent(question):
         reply = call_model(messages)
         print("Model:", reply)
         action = parse_action(reply)
+        # Preserve the request so the next model call knows what it asked for.
         messages.append({"role": "assistant", "content": reply})
 
         if action["action"] == "response":
@@ -142,6 +161,7 @@ def run_agent(question):
         result = dispatch_tool(action)
         tool_result = {"tool_result": {"tool": action["tool"], "result": result}}
         print("Tool result:", json.dumps(tool_result))
+        # Add the actual data to the conversation for the next model call.
         messages.append({"role": "user", "content": json.dumps(tool_result)})
 
     raise RuntimeError("Stopped after 5 model calls without a final answer.")
@@ -149,6 +169,7 @@ def run_agent(question):
 
 Before running it, find the two `messages.append(...)` lines.
 One records the model's request. The other adds the tool result for the next model call.
+Each call sends the conversation history again; the model cannot see your Python variables.
 
 Run `python workshop.py` and ask the weather question.
 
@@ -162,7 +183,7 @@ Assistant:   the answer
 ```
 
 Compare the answer with the returned values, units, and timestamp.
-Open-Meteo supplies a current weather estimate; check that the model describes it accurately.
+[Open-Meteo supplies weather estimates](https://open-meteo.com/en/docs#current), so check that the model describes the data accurately.
 
 Run the program again and ask: **What is a Python dictionary?**
 It should answer without a `Tool result:` line.
@@ -173,7 +194,8 @@ Check your implementation:
 python -m unittest discover -s tests -v
 ```
 
-All **20 tests** should pass. Tests use fake responses and do not spend API quota.
+All **20 tests** should pass at this stage. Run the full suite only after completing step 3;
+its agent tests expect the finished loop. Tests use fake responses and do not spend API quota.
 They verify the application, not the accuracy of a live model's answer.
 
 **Commit now:**
@@ -195,8 +217,9 @@ Explain these to a partner:
 2. Why does the second model request include both the tool request and its result?
 3. What happens if the model keeps requesting tools? Find the five-call limit.
 
-The **harness** is the code that manages the conversation, executes tools, and controls the loop.
-Our user-role `tool_result` message is a teaching convention. Native tool APIs use dedicated fields, but your application still runs local tools.
+You have built the harness: the model requests an action, Python runs it, and the model uses the result to answer.
+Our user-role `tool_result` message is a teaching convention.
+[Native tool calling](https://console.groq.com/docs/tool-use/local-tool-calling) uses dedicated API fields; your application still executes local tools.
 
 ## Stuck?
 
