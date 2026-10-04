@@ -14,7 +14,7 @@ Use that background to connect the harness to familiar ideas: input validation, 
 Students may still be taking the API course and have different specializations. Introduce the model's message protocol explicitly.
 
 By the end, students should be able to trace a tool request from JSON text to an allowed Python call,
-explain why the model needs the request and result in its next conversation, and distinguish formatting retries from tool steps.
+explain why the model needs the request and result in its next conversation, and distinguish formatting retries from agent loop iterations.
 Keep Git checkpoints brief. Give Python syntax reminders where they help students follow the control flow.
 
 The starter is a small, runnable model call with comments and no TODO exceptions.
@@ -111,7 +111,9 @@ python -m unittest tests.test_limits.HarnessSafetyTests.test_run_agent_stops_aft
 
 Students should see `Harness: retry 1/2` and `Harness: retry 2/2` before the format-exhaustion test stops.
 The test catches that expected error; `OK` means the limit worked. Fake model and tool output in the full suite is also expected.
-Explain that `MAX_RETRIES = 2` means three attempts per action and `MAX_STEPS = 5` means five valid actions.
+Explain that `MAX_RETRIES = 2` means three formatting attempts per action and `MAX_STEPS = 5` limits outer agent loop iterations.
+The iteration counter advances when the harness goes around the outer loop. A final response ends it early.
+The format-attempt counter stays within an iteration; a malformed reply never executes a tool.
 The maximum is 15 model requests per question. API and tool failures do not enter the formatting retry path.
 
 ## Optional schema extension

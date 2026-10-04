@@ -222,7 +222,7 @@ Replace `run_agent` with the block below, including the `MAX_STEPS` line.
 Keep your imports, system prompt, and bottom `if` block.
 
 ```python
-MAX_STEPS = 5  # Limit model calls so repeated tool requests cannot run forever.
+MAX_STEPS = 5  # Limit outer loop iterations per question; a final response ends the loop early.
 
 
 def run_agent(question):
@@ -233,8 +233,8 @@ def run_agent(question):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
-    for step in range(MAX_STEPS):
-        print_log("Harness", f"agent step {step + 1}/{MAX_STEPS}.")
+    for iteration in range(MAX_STEPS):
+        print_log("Harness", f"starting agent loop iteration {iteration + 1} (limit: {MAX_STEPS} per question).")
         # Resend all messages so the model can use any tool data added below.
         reply = call_model(messages)
         print_log("Model reply (raw)", reply)
@@ -245,7 +245,7 @@ def run_agent(question):
 
         if action["action"] == "response":
             # A response ends this question; a tool request needs another iteration.
-            print_log("Harness", "returning the model's answer from the content field.")
+            print_log("Harness", "final response received; ending the agent loop and returning its content.")
             return action["content"]
 
         # dispatch_tool checks the tool name and arguments before executing it.
@@ -259,7 +259,7 @@ def run_agent(question):
         print_log("Harness", "added tool data to the conversation for the next model call.")
 
     # No response arrived within the budget, so stop instead of calling forever.
-    raise RuntimeError("Stopped after 5 model calls without a final answer.")
+    raise RuntimeError("Stopped after 5 agent loop iterations without a final answer.")
 ```
 
 Before running it, find the two `messages.append(...)` lines.
@@ -269,12 +269,17 @@ Appending tool data changes the local list. The next `call_model(messages)` send
 Its trace shows the message count and roles, the newest message's content, and the wait for a reply.
 The full system prompt and earlier messages are sent too; the trace displays only the latest content to stay readable.
 
+An **agent loop iteration** is one pass through the outer `for` loop: request an action, validate it, then answer or execute a tool.
+The limit is five iterations per question. A `response` ends the loop immediately; a `tool-call` adds data for another iteration.
+For `hello`, iteration 1 usually returns an answer. Weather usually needs iteration 1 for the tool and iteration 2 for the answer.
+At this stage, invalid JSON ends the question. The five-iteration limit is not a parsing retry budget.
+
 Run `python workshop.py` and ask the weather question.
 
 **Look for this sequence:** placeholders stand in for the model name and weather data.
 
 ```text
-  Harness: agent step 1/5.
+  Harness: starting agent loop iteration 1 (limit: 5 per question).
   Harness: sending 2 messages: system -> user to <model>.
   Model input (latest message): [user]
     Weather in Vancouver?
@@ -285,7 +290,7 @@ Run `python workshop.py` and ask the weather question.
   Harness: executing tool: get_weather
   Tool result (data): <weather data>
   Harness: added tool data to the conversation for the next model call.
-  Harness: agent step 2/5.
+  Harness: starting agent loop iteration 2 (limit: 5 per question).
   Harness: sending 4 messages: system -> user -> assistant -> user to <model>.
   Model input (latest message): [user]
     <tool_result JSON added above>
@@ -293,7 +298,7 @@ Run `python workshop.py` and ask the weather question.
   Harness: received the model reply; returning its text.
   Model reply (raw): <JSON response using that data>
   Harness: validating the model reply.
-  Harness: returning the model's answer from the content field.
+  Harness: final response received; ending the agent loop and returning its content.
 Output: <model-written weather summary>
 ```
 
@@ -341,7 +346,7 @@ Keep your imports, system prompt, and bottom `if` block.
 The new `request_action` function handles formatting retries; `run_agent` still handles tool execution.
 
 ```python
-MAX_STEPS = 5  # Limit valid actions; each action has its own formatting retry budget.
+MAX_STEPS = 5  # Limit outer loop iterations; each iteration has its own formatting retry budget.
 MAX_RETRIES = 2  # Two additional requests after the initial attempt for an action.
 
 
@@ -349,6 +354,7 @@ def request_action(messages):
     """Request a valid action, giving the model bounded chances to fix its format."""
     for retry in range(MAX_RETRIES + 1):
         # The initial request plus two correction attempts gives three attempts.
+        print_log("Harness", f"format attempt {retry + 1}/{MAX_RETRIES + 1} within the current agent loop iteration.")
         reply = call_model(messages)
         print_log("Model reply (raw)", reply)
         # Record both valid and invalid replies so the model can see what to fix.
@@ -380,13 +386,13 @@ def run_agent(question):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
-    for step in range(MAX_STEPS):
-        print_log("Harness", f"agent step {step + 1}/{MAX_STEPS}.")
-        # Formatting retries happen inside request_action; each valid action is one step.
+    for iteration in range(MAX_STEPS):
+        print_log("Harness", f"starting agent loop iteration {iteration + 1} (limit: {MAX_STEPS} per question).")
+        # One iteration handles an action; request_action owns its formatting retries.
         action = request_action(messages)
         if action["action"] == "response":
             # Return the answer text, not the surrounding action JSON.
-            print_log("Harness", "returning the model's answer from the content field.")
+            print_log("Harness", "final response received; ending the agent loop and returning its content.")
             return action["content"]
 
         # Only validated tool requests reach dispatch_tool's allowlist and argument checks.
@@ -399,7 +405,7 @@ def run_agent(question):
         print_log("Harness", "added tool data to the conversation for the next model call.")
 
     # A finite budget also stops repeated valid tool requests from running forever.
-    raise RuntimeError("Stopped after 5 agent steps without a final answer.")
+    raise RuntimeError("Stopped after 5 agent loop iterations without a final answer.")
 ```
 
 Find the `try` block. It catches only action-format errors from `parse_action`.
@@ -416,10 +422,14 @@ The retry line comes from your Python harness. It explains the validation failur
 | Limit | What it counts |
 | --- | --- |
 | `MAX_RETRIES = 2` | Two correction attempts per action: at most three model requests. |
-| `MAX_STEPS = 5` | Five valid actions in the tool loop, with a fresh retry budget for each action. |
+| `MAX_STEPS = 5` | At most five agent loop iterations, each handling one valid response or tool request. |
+
+These counters belong to different loops. `run_agent` counts outer iterations; `request_action` counts formatting attempts within an iteration.
+Invalid JSON can trigger another format attempt without advancing the outer iteration. Either action shape must pass validation.
+For example, an invalid reply followed by a valid tool request uses two format attempts inside iteration 1.
 
 Together, these settings allow at most **15 model requests** for one question.
-Repeated invalid replies stop after three requests; repeated valid tool requests stop after five agent steps.
+Repeated invalid replies stop after three requests; repeated valid tool requests stop after five agent loop iterations.
 
 Check your implementation:
 
@@ -459,8 +469,8 @@ Explain these to a partner:
 
 1. What can the final program do that the starter could not?
 2. Why does the second model request include both the tool request and its result?
-3. What happens if the model keeps requesting tools? Find the five-step limit.
-4. How are formatting retries different from tool steps? Why do both need limits?
+3. What happens if the model keeps requesting tools? Find the five-iteration limit.
+4. How are formatting retries different from agent loop iterations? Why do both need limits?
 
 You have built the harness: the model requests an action, Python runs it, and the model uses the result to answer.
 Our user-role `tool_result` message is a teaching convention.
@@ -569,6 +579,7 @@ def request_action(messages):
     """Request schema-shaped actions, retaining bounded retries and local validation."""
     for retry in range(MAX_RETRIES + 1):
         # The API constrains the reply's shape; Python still checks our action rules.
+        print_log("Harness", f"format attempt {retry + 1}/{MAX_RETRIES + 1} within the current agent loop iteration.")
         reply = call_model(messages, response_format=RESPONSE_FORMAT)
         print_log("Model reply (raw)", reply)
         # Preserve the full schema reply, including null fields, in the model's history.
