@@ -35,7 +35,9 @@ There is no weather request. The model may admit uncertainty or give a plausible
 
 **Predict:** what would the application need to add?
 
-Each run handles one question and exits. Save `workshop.py`, then use `python workshop.py` at every step below.
+The program keeps prompting until you type `/exit` or `/quit`, press Ctrl-C, or send EOF (Ctrl-D on macOS/Linux).
+Each question starts a new conversation. Use `--prompt "your question"` to answer once and exit.
+Exit before running terminal commands or restarting after edits. Save `workshop.py`, then run `python workshop.py` at each step below.
 Run it in the setup terminal so Python can use your API key.
 Run terminal commands one code block at a time, in order.
 The intermediate Git checkpoints are optional. During the live demo, you can skip them and commit after step 4.
@@ -290,7 +292,8 @@ def run_agent(question):
 ```
 
 Find the `try` block. It catches only action-format errors from `parse_action`.
-API failures, unknown tools, invalid tool arguments, and weather failures stop the program instead of triggering formatting retries.
+API failures, unknown tools, invalid tool arguments, and weather failures end the current question without triggering formatting retries.
+In interactive mode, you can enter another question. With `--prompt`, the program exits with status 1.
 With `MAX_RETRIES = 2`, `range(MAX_RETRIES + 1)` gives attempt indices 0, 1, and 2.
 The first attempt is not a retry. A successful `return` exits the function immediately.
 
@@ -311,10 +314,10 @@ Check your implementation:
 python -m unittest discover -s tests -v
 ```
 
-All **22 tests** should pass. They include malformed JSON, Markdown fences, incorrect fields, recovery, and retry exhaustion.
+All **24 tests** should pass. They include malformed JSON, Markdown fences, incorrect fields, recovery, and retry exhaustion.
 The tests deliberately supply invalid replies, so you can see the retry behavior without relying on a live model to make a mistake.
 They use fake responses, do not spend API quota, and cannot prove the accuracy of a live answer.
-Expect a summary with `Ran 22 tests` and `OK`. Lines such as `Model: not JSON`, `Retry 2/2:`,
+Expect a summary with `Ran 24 tests` and `OK`. Lines such as `Model: not JSON`, `Retry 2/2:`,
 and a fake `delete_everything` request are expected test data. They may appear after the summary.
 
 **Commit now:**
@@ -485,7 +488,7 @@ The answer and tool sequence should still match the core exercise.
 python -m unittest discover -s tests -v
 ```
 
-All **22 tests** should still pass. They check the application with fake model replies;
+All **24 tests** should still pass. They check the application with fake model replies;
 they do not verify the hosted API's schema enforcement.
 
 **Commit now:**

@@ -160,22 +160,35 @@ def dispatch_tool(action: dict) -> dict:
 
 
 def run_cli(answer):
-    """Read one question, pass it to the student's function, and print its answer.
+    """Read questions, pass each to the student's function, and print its answer.
 
     The answer argument is a function, such as run_agent, supplied by workshop.py.
-    Accept --prompt or interactive input, show expected errors, and exit after
-    one question. Keeping terminal handling here lets students focus on the loop.
+    With --prompt, answer once and exit with status 1 for expected errors.
+    Otherwise, keep prompting until /exit, /quit, EOF, or Ctrl-C. Show expected
+    errors and let the user try again. Each question calls answer separately;
+    this helper does not retain conversation history.
+    Keeping terminal handling here lets students focus on the agent loop.
     """
     parser = argparse.ArgumentParser(description="Ask your workshop assistant a question.")
     parser.add_argument("--prompt", help="Omit to type your question interactively")
     args = parser.parse_args()
     try:
-        question = args.prompt if args.prompt is not None else input("You: ")
-        if not question.strip():
-            raise ValueError("Please enter a nonempty prompt.")
-        print("Assistant:", answer(question))
-    except (ValueError, RuntimeError) as error:
-        print(f"Error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
+        if args.prompt is None:
+            print("Type '/exit' or '/quit' to leave.")
+        while True:
+            question = args.prompt if args.prompt is not None else input("You: ")
+            if args.prompt is None and question.strip().lower() in ("/exit", "/quit"):
+                print("Goodbye.")
+                return
+            try:
+                if not question.strip():
+                    raise ValueError("Please enter a nonempty prompt.")
+                print("Assistant:", answer(question))
+            except (ValueError, RuntimeError) as error:
+                print(f"Error: {error}", file=sys.stderr)
+                if args.prompt is not None:
+                    raise SystemExit(1) from error
+            if args.prompt is not None:
+                return
     except (EOFError, KeyboardInterrupt):
         print("\nGoodbye.")
