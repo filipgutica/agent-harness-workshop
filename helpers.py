@@ -22,7 +22,7 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     if not api_key or api_key == "replace-with-your-own-key":
         raise RuntimeError("Set GROQ_API_KEY in your terminal first.")
     payload = {
-        "model": os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b"),
+        "model": os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
         "messages": messages,
         "max_tokens": 2048,
     }
@@ -45,6 +45,11 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
             data = json.load(response)
     except HTTPError as error:
         error.close()
+        if error.code == 400:
+            raise RuntimeError(
+                "Model API returned HTTP 400. Check the request format and model compatibility. "
+                "See SETUP.md troubleshooting."
+            ) from error
         raise RuntimeError(
             f"Model API returned HTTP {error.code}. Check your key, model, and quota."
         ) from error

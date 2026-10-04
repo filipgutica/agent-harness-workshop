@@ -10,7 +10,7 @@ from tests.support import FakeResponse
 
 
 class CallModelTests(unittest.TestCase):
-    def test_call_model_defaults_to_groq_gpt_oss_20b(self):
+    def test_call_model_defaults_to_groq_gpt_oss_120b(self):
         response = FakeResponse({"choices": [{"message": {"content": "Hello"}}]})
         with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}, clear=True), patch.object(
             workshop, "urlopen", return_value=response
@@ -18,7 +18,7 @@ class CallModelTests(unittest.TestCase):
             workshop.call_model([{"role": "user", "content": "Hello"}])
 
         payload = json.loads(request.call_args.args[0].data)
-        self.assertEqual(payload["model"], "openai/gpt-oss-20b")
+        self.assertEqual(payload["model"], "openai/gpt-oss-120b")
         self.assertNotIn("tools", payload)
         self.assertNotIn("response_format", payload)
 
@@ -79,19 +79,23 @@ class CallModelTests(unittest.TestCase):
         mocked_urlopen.assert_not_called()
 
     def test_call_model_turns_http_errors_into_runtime_errors(self):
-        error = HTTPError(
-            url="https://example.test/v1/chat/completions",
-            code=500,
-            msg="server error",
-            hdrs=None,
-            fp=None,
-        )
-
-        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}), patch.object(
-            workshop, "urlopen", side_effect=error
+        for status, explanation in (
+            (400, "request format and model compatibility"),
+            (500, "key, model, and quota"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "500"):
-                workshop.call_model([{"role": "user", "content": "Hello"}])
+            with self.subTest(status=status):
+                error = HTTPError(
+                    url="https://example.test/v1/chat/completions",
+                    code=status,
+                    msg="request failed",
+                    hdrs=None,
+                    fp=None,
+                )
+                with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}), patch.object(
+                    workshop, "urlopen", side_effect=error
+                ):
+                    with self.assertRaisesRegex(RuntimeError, f"HTTP {status}.*{explanation}"):
+                        workshop.call_model([{"role": "user", "content": "Hello"}])
 
 
 if __name__ == "__main__":

@@ -38,6 +38,15 @@ There is no weather request. The model may admit uncertainty or give a plausible
 Each run handles one question and exits. Save `workshop.py`, then use `python workshop.py` at every step below.
 Run it in the setup terminal so Python can use your API key.
 Run terminal commands one code block at a time, in order.
+The intermediate Git checkpoints are optional. During the live demo, you can skip them and commit after step 4.
+
+Each message has a `role` (who is speaking) and `content` (text):
+
+| Role | Purpose |
+| --- | --- |
+| `system` | Instructions for the model, including our allowed action shapes. |
+| `user` | Your question; later, our application also uses this role to send tool data. |
+| `assistant` | A model reply that we record before the next request. |
 
 ## 1. Ask for a tool request — 6 minutes
 
@@ -73,7 +82,7 @@ Run `python workshop.py` and ask the same weather question.
 Nothing executes yet. The model is still returning text.
 If it adds extra text or invalid JSON, check your prompt and retry once.
 
-**Commit now:**
+**Optional checkpoint:**
 
 ```bash
 git add workshop.py
@@ -129,9 +138,12 @@ Three supplied helpers do the supporting work:
 Open `dispatch_tool` in `helpers.py` briefly. Its `tools` dictionary lists the functions the model is allowed to request.
 Close that file without editing it.
 
+`reply` is JSON text. `parse_action` converts it to a Python dictionary, so `action["tool"]` reads a key.
+`json.dumps` performs the reverse conversion: a Python object becomes JSON text for output or a message.
+
 **Explain:** did the model run the tool, or did Python?
 
-**Commit now:**
+**Optional checkpoint:**
 
 ```bash
 git add workshop.py
@@ -195,10 +207,12 @@ Compare the answer with the returned values, units, and timestamp.
 
 Run the program again and ask: **What is a Python dictionary?**
 It should answer without a `Tool result:` line.
+Check one factual claim against what you know or the [Python documentation](https://docs.python.org/3/library/stdtypes.html#mapping-types-dict).
+A valid JSON reply can still contain a wrong explanation.
 
 Run the full test suite after the next step. Its retry tests expect the completed core exercise.
 
-**Commit now:**
+**Optional checkpoint:**
 
 ```bash
 git diff --check
@@ -216,7 +230,7 @@ git commit -m "feat: return tool results through an agent loop"
 git status --short
 ```
 
-The last command should print nothing. You now have three implementation commits.
+The last command should print nothing. If you used each checkpoint, you now have three implementation commits.
 
 ## 4. Retry invalid JSON — 10 minutes
 
@@ -277,6 +291,8 @@ def run_agent(question):
 
 Find the `try` block. It catches only action-format errors from `parse_action`.
 API failures, unknown tools, invalid tool arguments, and weather failures stop the program instead of triggering formatting retries.
+With `MAX_RETRIES = 2`, `range(MAX_RETRIES + 1)` gives attempt indices 0, 1, and 2.
+The first attempt is not a retry. A successful `return` exits the function immediately.
 
 Save and run both prompts again. Valid replies still need no retries.
 If a reply is invalid, look for `Retry 1/2:` or `Retry 2/2:`, followed by another model reply.
@@ -298,6 +314,8 @@ python -m unittest discover -s tests -v
 All **22 tests** should pass. They include malformed JSON, Markdown fences, incorrect fields, recovery, and retry exhaustion.
 The tests deliberately supply invalid replies, so you can see the retry behavior without relying on a live model to make a mistake.
 They use fake responses, do not spend API quota, and cannot prove the accuracy of a live answer.
+Expect a summary with `Ran 22 tests` and `OK`. Lines such as `Model: not JSON`, `Retry 2/2:`,
+and a fake `delete_everything` request are expected test data. They may appear after the summary.
 
 **Commit now:**
 
@@ -317,7 +335,7 @@ git commit -m "feat: retry invalid model actions with a bounded limit"
 git status --short
 ```
 
-You now have four implementation commits.
+Your completed core is now committed. If you used every checkpoint, you have four implementation commits.
 
 ## 5. Explain what changed — 3 minutes
 
@@ -345,7 +363,7 @@ There are two different API options:
 | `json_schema` with `strict: True` | The field names, types, and rules in your supplied schema. |
 
 You select one option per request. Adding a schema to the prompt does not make `json_object` enforce it.
-The default `openai/gpt-oss-20b` model supports both options. [Groq structured outputs documentation](https://console.groq.com/docs/structured-outputs)
+The default `openai/gpt-oss-120b` model supports both options. [Groq structured outputs documentation](https://console.groq.com/docs/structured-outputs)
 
 ### First: try JSON mode
 
@@ -425,6 +443,7 @@ Do not invent weather readings. If the tool data is insufficient, say so.
 Replace `request_action` with the version below. Keep `run_agent`, `MAX_STEPS`, and `MAX_RETRIES` from step 4.
 It removes unused `null` fields before calling the existing validator.
 The conversation still records the full model reply, including those fields.
+`json.loads` converts JSON `null` to Python `None`. The dictionary comprehension keeps only fields whose values are not `None`.
 
 ```python
 def request_action(messages):
@@ -493,13 +512,8 @@ It is a separate next step for a production tool interface. [Groq local tool cal
 
 ## Stuck?
 
-See [troubleshooting](SETUP.md#troubleshooting). To compare the original tool loop without replacing your work:
-
-```bash
-git show origin/solution:workshop.py
-```
-
-Press `q` to close Git's pager. `main` is the starter.
-The current `solution` branch contains the original tool loop through step 3; use the complete block in step 4 for the version with retries.
-The optional schema extension is described above.
+See [troubleshooting](SETUP.md#troubleshooting). Compare your file with the complete code block for your current step.
+For step 4, keep the imports and system prompt from steps 1–2, both functions from step 4, and the starter's bottom `if` block.
+`main` is the starter. The historical `solution` branch stops at step 3 and has older helpers;
+use this README's blocks to recover the current exercise.
 [Facilitator notes](FACILITATOR.md) are for the instructor.

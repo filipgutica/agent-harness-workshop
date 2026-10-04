@@ -6,6 +6,17 @@ Ask students to complete [SETUP.md](SETUP.md), including its live Groq check, be
 Pilot the README from a fresh clone. The target is **40 minutes**, not a measured completion time.
 The audience is **BCIT CST term 4**. Students need basic functions, dictionaries, conditionals, loops, and Git.
 
+### Audience and learning goals
+
+The [BCIT CST curriculum](https://www.bcit.ca/programs/computer-systems-technology-diploma-full-time-5500dipma/#courses)
+places procedural and object-oriented programming before term 4. Internet Software Architecture (COMP 4537), including HTTP and REST, is in term 4.
+Use that background to connect the harness to familiar ideas: input validation, function dispatch, state, and exception handling.
+Students may still be taking the API course and have different specializations. Introduce the model's message protocol explicitly.
+
+By the end, students should be able to trace a tool request from JSON text to an allowed Python call,
+explain why the model needs the request and result in its next conversation, and distinguish formatting retries from tool steps.
+Keep Git checkpoints brief. Give Python syntax reminders where they help students follow the control flow.
+
 The starter is a small, runnable model call with comments and no TODO exceptions.
 Students edit only `workshop.py`; `helpers.py` contains the existing HTTP requests, validation, and terminal handling.
 Explain that moving HTTP code into another file does not make it an agent framework.
@@ -30,13 +41,14 @@ Before presenting:
 | Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 22 tests pass. |
 | Discussion | 3 | Explain what the harness owns. | Students can explain who executes the tool. |
 
-Each of the four edits leaves a runnable program. Students commit after each successful stage.
+Each of the four edits leaves a runnable program. Intermediate commits are optional; students commit the completed core after step 4.
 They replace complete blocks instead of filling scattered blanks.
 Keep the same command, `python workshop.py`, throughout.
 
 Use **What is the temperature in Vancouver right now?** at every stage.
 Before each run, ask students to predict the output. Pause for them to save, run, and compare it with the README.
 After step 3, use **What is a Python dictionary?** to show that a direct answer skips the tool.
+Ask students to check one claim in that answer. Valid JSON and schema compliance do not guarantee factual accuracy.
 
 Point to these boundaries as you teach:
 
@@ -65,7 +77,9 @@ Compare the live final answer with the tool's readings, units, timestamp, and so
 [Open-Meteo returns weather model estimates](https://open-meteo.com/en/docs#current), so describe the data as estimates.
 
 Check Groq model access and [rate limits](https://console.groq.com/docs/rate-limits) before class.
-The default is [`openai/gpt-oss-20b`](https://console.groq.com/docs/models). If you change `GROQ_MODEL`, pilot the replacement first.
+The default is [`openai/gpt-oss-120b`](https://console.groq.com/docs/models). If you change `GROQ_MODEL`, pilot every stage and both bonus modes first.
+In the student rehearsal, `openai/gpt-oss-20b` returned HTTP 400 for the core weather request and JSON mode;
+the same prompts worked on 120B. A successful setup greeting alone does not verify tool requests.
 A successful weather interaction normally uses two model requests when no formatting retry is needed. Each student should use their own key.
 If access fails, use [setup troubleshooting](SETUP.md#troubleshooting) and pair the student with someone whose setup works.
 
@@ -73,7 +87,14 @@ An honest admission of uncertainty is a valid starter result; the lesson does no
 Native tool calling, additional tools, and retries for network or service failures belong in a later exercise.
 
 For the retry demonstration, use the offline suite's deliberately invalid replies.
+For a shorter trace, run this existing test after step 4:
+
+```bash
+python -m unittest tests.test_limits.HarnessSafetyTests.test_run_agent_stops_after_the_maximum_number_of_format_retries -v
+```
+
 Students should see `Retry 1/2:` and `Retry 2/2:` before the format-exhaustion test stops.
+The test catches that expected error; `OK` means the limit worked. Fake model and tool output in the full suite is also expected.
 Explain that `MAX_RETRIES = 2` means three attempts per action and `MAX_STEPS = 5` means five valid actions.
 The maximum is 15 model requests per question. API and tool failures do not enter the formatting retry path.
 
@@ -98,33 +119,24 @@ The offline suite contains 22 tests and works after either bonus mode.
 Its fake replies do not prove live schema enforcement. Compare the live `Model:` output with the supplied schema.
 Apply the bonus after the retry step on the student's branch from `main`.
 
-## Branches and the reference solution
+## Prepare an instructor copy
 
-GitHub has the starter branch `main` and the original loop reference `solution`, which covers README steps 1–3.
-The current retry version is the complete block in README step 4; the remote reference branch has not been updated with that extension.
-`origin/solution` is Git's reference to the GitHub branch; it is not a second solution.
+Use current `main` for your reference copy so it includes the supplied helper fixes.
+From a fresh clone, run one code block at a time, in order.
 
-From a clone, read the original tool loop without replacing student work:
-
-```bash
-git show origin/solution:workshop.py
-```
-
-To run it in a separate directory, run one code block at a time, in order.
-
-Create a worktree for the reference branch:
+Create a separate worktree:
 
 ```bash
-git worktree add --detach ../agent-harness-workshop-solution origin/solution
+git worktree add --detach ../agent-harness-workshop-reference main
 ```
 
 Move into that directory:
 
 ```bash
-cd ../agent-harness-workshop-solution
+cd ../agent-harness-workshop-reference
 ```
 
-Run its offline tests:
+Apply the Python changes in README steps 1–4 in that directory, then run the complete offline suite:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -137,3 +149,4 @@ python workshop.py
 ```
 
 Keep the setup terminal open so its Python environment and Groq key remain available.
+The historical `solution` branch contains the original three-step loop and older helpers. Use it only to read the earlier implementation.

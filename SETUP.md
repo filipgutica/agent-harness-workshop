@@ -138,8 +138,9 @@ Remove the temporary variable:
 Remove-Variable secret
 ```
 
-The key lasts for this terminal session. The application does not load `.env` files.
-The supplied model is [`openai/gpt-oss-20b` on Groq](https://console.groq.com/docs/models); no model setting is required.
+The key belongs to this terminal session, not the virtual environment. Closing the terminal removes it;
+deactivating `.venv` does not. The application does not load `.env` files.
+The supplied model is [`openai/gpt-oss-120b` on Groq](https://console.groq.com/docs/models); no model setting is required.
 
 ## 4. Check setup
 
@@ -161,6 +162,7 @@ During class, use this terminal to run the program; an editor's Run button may n
 | --- | --- |
 | Missing `GROQ_API_KEY` | Repeat step 3 in the same terminal that runs Python. |
 | HTTP 401 | Check that you entered a valid Groq key. |
+| HTTP 400 during a tool-request step | Check for an old `GROQ_MODEL` override. Use the supplied `openai/gpt-oss-120b` default, then rerun once. Ask the instructor if it still fails. |
 | HTTP 403 or unavailable model | Check your account's model access in Groq Console. |
 | HTTP 429 | Pause live calls and check [Groq limits](https://console.groq.com/docs/rate-limits). Offline tests still work. |
 | Invalid JSON before workshop step 4 | Copy the full system prompt again, then rerun once. Ask the instructor if it still fails. |
@@ -172,6 +174,19 @@ During class, use this terminal to run the program; an editor's Run button may n
 | A new terminal cannot find `python` or your key | Activate `.venv` and repeat step 3 in that terminal. |
 | Git opens a pager | Press `q` to return to the terminal. |
 | Network or certificate error | Check connectivity and your Python installation. Do not disable TLS verification. |
+
+If you previously set `GROQ_MODEL`, remove the override to use the supplied default.
+In Bash or Zsh:
+
+```bash
+unset GROQ_MODEL
+```
+
+In PowerShell:
+
+```powershell
+Remove-Item Env:GROQ_MODEL -ErrorAction SilentlyContinue
+```
 
 If Git asks for your identity, run each command with your own details, then retry the commit.
 
