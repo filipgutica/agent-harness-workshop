@@ -1,4 +1,6 @@
 import io
+import os
+import re
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import Mock, call, patch
@@ -7,13 +9,33 @@ from helpers import run_cli
 
 
 class CliTests(unittest.TestCase):
+    def test_cli_colors_terminal_labels_and_indents_multiline_output(self):
+        cases = (
+            (False, {}, False),
+            (True, {}, True),
+            (True, {"NO_COLOR": ""}, False),
+            (True, {"TERM": "dumb"}, False),
+        )
+        for is_terminal, environment, colored in cases:
+            with self.subTest(is_terminal=is_terminal, environment=environment):
+                output = io.StringIO()
+                with patch("sys.argv", ["workshop.py", "--prompt", "hello"]), patch.dict(
+                    os.environ, environment, clear=True
+                ), patch.object(output, "isatty", return_value=is_terminal), redirect_stdout(output):
+                    run_cli(lambda question: "First line\nSecond line")
+
+                rendered = output.getvalue()
+                self.assertEqual("\033[" in rendered, colored)
+                plain = re.sub(r"\033\[[0-9;]*m", "", rendered)
+                self.assertEqual(plain, "Output: First line\n  Second line\n")
+
     def test_cli_passes_the_question_to_the_application(self):
         answer = Mock(return_value="Hello from the model")
         output = io.StringIO()
         with patch("sys.argv", ["workshop.py", "--prompt", "hello workshop"]), redirect_stdout(output):
             run_cli(answer)
         answer.assert_called_once_with("hello workshop")
-        self.assertEqual(output.getvalue().strip(), "Assistant: Hello from the model")
+        self.assertEqual(output.getvalue().strip(), "Output: Hello from the model")
 
     def test_empty_prompt_is_rejected(self):
         answer = Mock()
@@ -36,7 +58,7 @@ class CliTests(unittest.TestCase):
                     run_cli(answer)
 
                 self.assertEqual(answer.call_args_list, [call("exit"), call("quit")])
-                self.assertIn("Assistant: First answer\nAssistant: Second answer\n", output.getvalue())
+                self.assertIn("Output: First answer\nOutput: Second answer\n", output.getvalue())
                 self.assertIn("Goodbye.", output.getvalue())
 
     def test_interactive_cli_can_retry_after_errors(self):
@@ -54,7 +76,7 @@ class CliTests(unittest.TestCase):
                 expected_calls = [call("bad question"), call("try again")] if error else [call("try again")]
                 self.assertEqual(answer.call_args_list, expected_calls)
                 self.assertIn(f"Error: {error or 'Please enter a nonempty prompt.'}", errors.getvalue())
-                self.assertIn("Assistant: Recovered", output.getvalue())
+                self.assertIn("Output: Recovered", output.getvalue())
 
 
 if __name__ == "__main__":

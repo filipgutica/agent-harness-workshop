@@ -32,6 +32,8 @@ At `You:`, enter: **What is the temperature in Vancouver right now?**
 
 Read `workshop.py` from top to bottom. It sends a system message and your question to the model, then prints the reply.
 There is no weather request. The model may admit uncertainty or give a plausible answer, but it has no current reading.
+At this stage, `Output:` is the model's text returned unchanged by `run_agent`.
+The supplied `call_model` helper also traces the outgoing conversation and the wait for a reply.
 
 **Predict:** what would the application need to add?
 
@@ -49,6 +51,24 @@ Each message has a `role` (who is speaking) and `content` (text):
 | `system` | Instructions for the model, including our allowed action shapes. |
 | `user` | Your question; later, our application also uses this role to send tool data. |
 | `assistant` | A model reply that we record before the next request. |
+
+The model is the assistant. There is no second model producing the terminal's final line.
+Internal processing is indented, while `Output:` stays at the left edge. Labels use the terminal's colors:
+
+| Terminal label | Style | What it shows |
+| --- | --- | --- |
+| `Harness:` | Dim, indented | Requests, validation, loop steps, tool execution, and retries. |
+| `Model input (latest message):` | Cyan, indented | The newest message in the full conversation sent to the model. |
+| `Model reply (raw):` | Cyan, indented | The exact text returned by the LLM, before Python parses it. |
+| `Tool result (data):` | Yellow, indented | Tool data, displayed as readable JSON. |
+| `Output:` | Green, left edge | The value returned by `run_agent`, printed by `run_cli`. |
+| `Error:` | Red, left edge | A failure that ended the current question. |
+
+Color is disabled for redirected output, `NO_COLOR`, and `TERM=dumb`. Labels and indentation still identify each message.
+From step 2 onward, your code uses the supplied `print_log(label, message)` helper for consistent trace formatting.
+
+For a `response` action, the raw reply contains JSON and `Output:` displays its `content` field.
+Those are two views of the same model reply. For a `tool-call` action in step 2, `Output:` contains tool data instead.
 
 ## 1. Ask for a tool request — 6 minutes
 
@@ -80,8 +100,9 @@ Changing the prompt describes a tool, but does not give the model a way to run i
 
 Run `python workshop.py` and ask the same weather question.
 
-**Look for:** a JSON object with `"action": "tool-call"` and `"tool": "get_weather"`.
+**Look for:** an `Output:` line containing a JSON object with `"action": "tool-call"` and `"tool": "get_weather"`.
 Nothing executes yet. The model is still returning text.
+Python has not parsed the action. Both `response` and `tool-call` objects appear as raw JSON in `Output:`.
 If it adds extra text or invalid JSON, check your prompt and retry once.
 
 **Optional checkpoint:**
@@ -100,7 +121,7 @@ Replace the import line at the top of `workshop.py` with these two lines:
 
 ```python
 import json
-from helpers import call_model, dispatch_tool, parse_action, run_cli
+from helpers import call_model, dispatch_tool, parse_action, print_log, run_cli
 ```
 
 Replace the entire `run_agent` function with this version.
@@ -109,33 +130,73 @@ Keep `SYSTEM_PROMPT` above it and the `if __name__ == "__main__":` block below i
 ```python
 def run_agent(question):
     """Ask the model for an action, then return an answer or raw tool data."""
+    # Start fresh for each terminal question; previous questions are not included.
     messages = [
+        # The system message sets the rules; the user message supplies the question.
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
+    # The model returns text, even when that text looks like a JSON object.
     reply = call_model(messages)
-    print("Model:", reply)
+    print_log("Model reply (raw)", reply)
     # Convert the model's text into a dictionary and check the agreed JSON shape.
+    print_log("Harness", "validating the model reply.")
     action = parse_action(reply)
 
     if action["action"] == "response":
+        # Show only the answer, rather than the JSON object containing it.
+        print_log("Harness", "returning the model's answer from the content field.")
         return action["content"]
 
     # Python runs the allowed function; the model has only requested it.
+    print_log("Harness", f"executing tool: {action['tool']}")
     result = dispatch_tool(action)
+    print_log("Harness", "returning raw tool data; it has not been sent back to the model.")
+    # This stage shows the data directly. Step 3 will send it back to the model.
     return json.dumps(result, indent=2)
 ```
 
 Run `python workshop.py` and ask the weather question again.
 
-**Look for:** the model's JSON request, followed by weather data printed as JSON.
-The application fetched the weather, but the model has not received that result yet.
+**Look for:** `Model reply (raw):` shows the JSON tool request. `Harness:` explains validation and execution.
+`Output:` shows raw weather JSON from Open-Meteo. The model has not received that result or written a weather summary yet.
+
+For a greeting, the two output lines have different forms of the same model reply:
+
+```text
+  Harness: sending 2 messages: system -> user to <model>.
+  Model input (latest message): [user]
+    hello
+  Harness: waiting for the model reply...
+  Harness: received the model reply; returning its text.
+  Model reply (raw): {"action":"response","content":"Hello!"}
+  Harness: validating the model reply.
+  Harness: returning the model's answer from the content field.
+Output: Hello!
+```
+
+For a weather question, the last line has a different source:
+
+```text
+  Harness: sending 2 messages: system -> user to <model>.
+  Model input (latest message): [user]
+    Weather in Vancouver?
+  Harness: waiting for the model reply...
+  Harness: received the model reply; returning its text.
+  Model reply (raw): {"action":"tool-call","tool":"get_weather","parameters":{"location":"Vancouver"}}
+  Harness: validating the model reply.
+  Harness: executing tool: get_weather
+  Harness: returning raw tool data; it has not been sent back to the model.
+Output: <weather JSON returned by the tool>
+```
 
 Three supplied helpers do the supporting work:
 
 - `call_model(messages)` sends the conversation to Groq and returns text.
 - `parse_action(reply)` reads the JSON and checks its shape.
 - `dispatch_tool(action)` checks the tool name and arguments, then calls the weather API.
+
+`print_log(label, message)` only formats terminal output. It does not change the conversation or execute an action.
 
 Open `dispatch_tool` in `helpers.py` briefly. Its `tools` dictionary lists the functions the model is allowed to request.
 Close that file without editing it.
@@ -166,49 +227,84 @@ MAX_STEPS = 5  # Limit model calls so repeated tool requests cannot run forever.
 
 def run_agent(question):
     """Keep sending tool results to the model until it answers or hits the limit."""
+    # Start a new history for this question; keep it across the tool-loop iterations.
     messages = [
+        # Instructions stay separate from the user's question.
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     for step in range(MAX_STEPS):
+        print_log("Harness", f"agent step {step + 1}/{MAX_STEPS}.")
+        # Resend all messages so the model can use any tool data added below.
         reply = call_model(messages)
-        print("Model:", reply)
+        print_log("Model reply (raw)", reply)
+        print_log("Harness", "validating the model reply.")
         action = parse_action(reply)
         # Preserve the request so the next model call knows what it asked for.
         messages.append({"role": "assistant", "content": reply})
 
         if action["action"] == "response":
+            # A response ends this question; a tool request needs another iteration.
+            print_log("Harness", "returning the model's answer from the content field.")
             return action["content"]
 
+        # dispatch_tool checks the tool name and arguments before executing it.
+        print_log("Harness", f"executing tool: {action['tool']}")
         result = dispatch_tool(action)
+        # Wrap the result in the tool_result shape described in SYSTEM_PROMPT.
         tool_result = {"tool_result": {"tool": action["tool"], "result": result}}
-        print("Tool result:", json.dumps(tool_result))
+        print_log("Tool result (data)", json.dumps(tool_result, indent=2, ensure_ascii=False))
         # Add the actual data to the conversation for the next model call.
         messages.append({"role": "user", "content": json.dumps(tool_result)})
+        print_log("Harness", "added tool data to the conversation for the next model call.")
 
+    # No response arrived within the budget, so stop instead of calling forever.
     raise RuntimeError("Stopped after 5 model calls without a final answer.")
 ```
 
 Before running it, find the two `messages.append(...)` lines.
 One records the model's request. The other adds the tool result for the next model call.
 Each call sends the conversation history again; the model cannot see your Python variables.
+Appending tool data changes the local list. The next `call_model(messages)` sends that updated list to Groq.
+Its trace shows the message count and roles, the newest message's content, and the wait for a reply.
+The full system prompt and earlier messages are sent too; the trace displays only the latest content to stay readable.
 
 Run `python workshop.py` and ask the weather question.
 
-**Look for this sequence:**
+**Look for this sequence:** placeholders stand in for the model name and weather data.
 
 ```text
-Model:       a JSON tool request
-Tool result: weather data
-Model:       a JSON final response
-Assistant:   the answer
+  Harness: agent step 1/5.
+  Harness: sending 2 messages: system -> user to <model>.
+  Model input (latest message): [user]
+    Weather in Vancouver?
+  Harness: waiting for the model reply...
+  Harness: received the model reply; returning its text.
+  Model reply (raw): <JSON tool request>
+  Harness: validating the model reply.
+  Harness: executing tool: get_weather
+  Tool result (data): <weather data>
+  Harness: added tool data to the conversation for the next model call.
+  Harness: agent step 2/5.
+  Harness: sending 4 messages: system -> user -> assistant -> user to <model>.
+  Model input (latest message): [user]
+    <tool_result JSON added above>
+  Harness: waiting for the model reply...
+  Harness: received the model reply; returning its text.
+  Model reply (raw): <JSON response using that data>
+  Harness: validating the model reply.
+  Harness: returning the model's answer from the content field.
+Output: <model-written weather summary>
 ```
+
+The first model reply requests a tool. The second model reply uses its result to write an answer.
+`Output:` now contains that answer's `content`, rather than the raw weather data shown in step 2.
 
 Compare the answer with the returned values, units, and timestamp.
 [Open-Meteo supplies weather estimates](https://open-meteo.com/en/docs#current), so check that the model describes the data accurately.
 
 Run the program again and ask: **What is a Python dictionary?**
-It should answer without a `Tool result:` line.
+It should answer without a `Tool result (data):` line.
 Check one factual claim against what you know or the [Python documentation](https://docs.python.org/3/library/stdtypes.html#mapping-types-dict).
 A valid JSON reply can still contain a wrong explanation.
 
@@ -252,18 +348,22 @@ MAX_RETRIES = 2  # Two additional requests after the initial attempt for an acti
 def request_action(messages):
     """Request a valid action, giving the model bounded chances to fix its format."""
     for retry in range(MAX_RETRIES + 1):
+        # The initial request plus two correction attempts gives three attempts.
         reply = call_model(messages)
-        print("Model:", reply)
+        print_log("Model reply (raw)", reply)
         # Record both valid and invalid replies so the model can see what to fix.
         messages.append({"role": "assistant", "content": reply})
         try:
+            print_log("Harness", "validating the model reply.")
             return parse_action(reply)
         except ValueError as error:
+            # Retry only malformed actions; API failures are not formatting errors.
             if retry == MAX_RETRIES:
                 raise RuntimeError(
                     f"Stopped after {MAX_RETRIES} retries without a valid JSON action."
                 ) from error
-            print(f"Retry {retry + 1}/{MAX_RETRIES}: {error}")
+            print_log("Harness", f"retry {retry + 1}/{MAX_RETRIES} after an invalid action: {error}")
+            # Give the model the validation error alongside its recorded bad reply.
             messages.append({
                 "role": "user",
                 "content": f"Your reply was invalid: {error}. "
@@ -274,20 +374,31 @@ def request_action(messages):
 
 def run_agent(question):
     """Use validated actions to answer or execute tools, with a separate step limit."""
+    # Start a new history for this question; retries and tool calls reuse this list.
     messages = [
+        # Instructions stay separate from the user's question.
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     for step in range(MAX_STEPS):
+        print_log("Harness", f"agent step {step + 1}/{MAX_STEPS}.")
+        # Formatting retries happen inside request_action; each valid action is one step.
         action = request_action(messages)
         if action["action"] == "response":
+            # Return the answer text, not the surrounding action JSON.
+            print_log("Harness", "returning the model's answer from the content field.")
             return action["content"]
 
+        # Only validated tool requests reach dispatch_tool's allowlist and argument checks.
+        print_log("Harness", f"executing tool: {action['tool']}")
         result = dispatch_tool(action)
         tool_result = {"tool_result": {"tool": action["tool"], "result": result}}
-        print("Tool result:", json.dumps(tool_result))
+        print_log("Tool result (data)", json.dumps(tool_result, indent=2, ensure_ascii=False))
+        # The next model call needs the actual tool data, not just the request.
         messages.append({"role": "user", "content": json.dumps(tool_result)})
+        print_log("Harness", "added tool data to the conversation for the next model call.")
 
+    # A finite budget also stops repeated valid tool requests from running forever.
     raise RuntimeError("Stopped after 5 agent steps without a final answer.")
 ```
 
@@ -298,7 +409,9 @@ With `MAX_RETRIES = 2`, `range(MAX_RETRIES + 1)` gives attempt indices 0, 1, and
 The first attempt is not a retry. A successful `return` exits the function immediately.
 
 Save and run both prompts again. Valid replies still need no retries.
-If a reply is invalid, look for `Retry 1/2:` or `Retry 2/2:`, followed by another model reply.
+If a reply is invalid, look for `Harness: retry 1/2` or `Harness: retry 2/2`, followed by another raw model reply.
+The retry line comes from your Python harness. It explains the validation failure before requesting a correction.
+`Output:` appears only after `run_agent` returns successfully; intermediate requests and retries are trace messages.
 
 | Limit | What it counts |
 | --- | --- |
@@ -314,10 +427,10 @@ Check your implementation:
 python -m unittest discover -s tests -v
 ```
 
-All **24 tests** should pass. They include malformed JSON, Markdown fences, incorrect fields, recovery, and retry exhaustion.
+All **26 tests** should pass. They include malformed JSON, Markdown fences, incorrect fields, recovery, and retry exhaustion.
 The tests deliberately supply invalid replies, so you can see the retry behavior without relying on a live model to make a mistake.
 They use fake responses, do not spend API quota, and cannot prove the accuracy of a live answer.
-Expect a summary with `Ran 24 tests` and `OK`. Lines such as `Model: not JSON`, `Retry 2/2:`,
+Expect a summary with `Ran 26 tests` and `OK`. Lines such as `Model reply (raw): not JSON`, `Harness: retry 2/2`,
 and a fake `delete_everything` request are expected test data. They may appear after the summary.
 
 **Commit now:**
@@ -387,6 +500,7 @@ Add this constant above `MAX_STEPS` in `workshop.py`:
 
 ```python
 RESPONSE_FORMAT = {
+    # Ask the API to enforce this schema, rather than just valid JSON syntax.
     "type": "json_schema",
     "json_schema": {
         "name": "agent_action",
@@ -395,6 +509,7 @@ RESPONSE_FORMAT = {
             "type": "object",
             "properties": {
                 "action": {"type": "string", "enum": ["response", "tool-call"]},
+                # All fields are required; null marks fields unused by this action.
                 "content": {"type": ["string", "null"]},
                 "tool": {"type": ["string", "null"]},
                 "parameters": {
@@ -410,6 +525,7 @@ RESPONSE_FORMAT = {
                 },
             },
             "required": ["action", "content", "tool", "parameters"],
+            # Reject fields that are not declared in properties.
             "additionalProperties": False,
         },
     },
@@ -452,10 +568,13 @@ The conversation still records the full model reply, including those fields.
 def request_action(messages):
     """Request schema-shaped actions, retaining bounded retries and local validation."""
     for retry in range(MAX_RETRIES + 1):
+        # The API constrains the reply's shape; Python still checks our action rules.
         reply = call_model(messages, response_format=RESPONSE_FORMAT)
-        print("Model:", reply)
+        print_log("Model reply (raw)", reply)
+        # Preserve the full schema reply, including null fields, in the model's history.
         messages.append({"role": "assistant", "content": reply})
         try:
+            print_log("Harness", "validating the model reply.")
             action_data = json.loads(reply)
             if not isinstance(action_data, dict):
                 raise ValueError("Action must be a JSON object.")
@@ -463,11 +582,13 @@ def request_action(messages):
             action_data = {key: value for key, value in action_data.items() if value is not None}
             return parse_action(json.dumps(action_data))
         except ValueError as error:
+            # Keep the same correction budget as the core exercise.
             if retry == MAX_RETRIES:
                 raise RuntimeError(
                     f"Stopped after {MAX_RETRIES} retries without a valid JSON action."
                 ) from error
-            print(f"Retry {retry + 1}/{MAX_RETRIES}: {error}")
+            print_log("Harness", f"retry {retry + 1}/{MAX_RETRIES} after an invalid action: {error}")
+            # Describe the local validation failure so the model can correct its reply.
             messages.append({
                 "role": "user",
                 "content": f"Your reply was invalid: {error}. "
@@ -481,14 +602,15 @@ Save, then run both prompts again:
 - **What is the temperature in Vancouver right now?** Expect a tool request, actual weather data, then an answer.
 - **What is a Python dictionary?** Expect a direct answer with no tool request.
 
-Look for all four fields in each `Model:` line, including `null` for unused fields.
+Look for all four fields in each `Model reply (raw):` line, including `null` for unused fields.
+`Harness:` still shows validation and tool execution. `Output:` still shows the response's `content`; schema fields are not displayed there.
 The answer and tool sequence should still match the core exercise.
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-All **24 tests** should still pass. They check the application with fake model replies;
+All **26 tests** should still pass. They check the application with fake model replies;
 they do not verify the hosted API's schema enforcement.
 
 **Commit now:**

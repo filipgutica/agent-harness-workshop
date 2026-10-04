@@ -27,7 +27,7 @@ Before presenting:
 - Keep a starter copy for the live edits and a separate solution copy for reference.
 - Use a large editor font and terminal font so students can read the code and output.
 - Check the live weather prompt and a direct-answer prompt with your own key.
-- Confirm students have their `my-workshop` branch, 10 passing setup tests, and a live reply.
+- Confirm students have their `my-workshop` branch, 14 passing setup tests, and a live reply.
 - Keep the setup terminal open. A new terminal needs its environment and key set again.
 
 ## Schedule
@@ -38,7 +38,7 @@ Before presenting:
 | JSON prompt | 6 | A tool request is still just text. | Output contains a JSON `tool-call`. |
 | Tool execution | 7 | Python validates the request and fetches weather. | Output contains weather data. |
 | Agent loop | 10 | Add both the model request and tool result to history. | Weather data is followed by a final answer. |
-| Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 22 tests pass. |
+| Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 26 tests pass. |
 | Discussion | 3 | Explain what the harness owns. | Students can explain who executes the tool. |
 
 Each of the four edits leaves a runnable program. Intermediate commits are optional; students commit the completed core after step 4.
@@ -62,10 +62,26 @@ The tool-execution stage intentionally prints raw weather JSON. It does not send
 Step 3 adds the loop and produces a model-written answer. Step 4 adds bounded formatting retries.
 Use that difference to explain why a tool call and an agent loop are separate concepts.
 
+Read the terminal labels aloud when comparing stages:
+
+- `Model reply (raw):` is text from the LLM, before Python parses it.
+- `Model input (latest message):` shows the newest message sent in the full conversation.
+- `Harness:` explains the harness's validation, tool execution, and formatting retries.
+- `Tool result (data):` is data from the executed tool, added to the conversation in steps 3 and 4.
+- `Output:` is the value returned by `run_agent`, printed by `run_cli`. It is not a second model call.
+
+In steps 0 and 1, `Output:` is the model's unchanged text. In step 2, it is response content or raw tool data.
+From step 3 onward, a successful `Output:` is response content after any tool calls.
+For a direct answer, the raw JSON and final text come from the same model reply.
+For weather, step 3 adds a second model call so the model can turn tool data into an answer.
+Point to the trace changing from two messages to four: system instructions, the question, the model's request, and tool data.
+Appending data only changes the local list. The next HTTP request sends the updated history to Groq and waits for its reply.
+Internal messages are indented, with colored labels; final output stays at the left edge. `NO_COLOR` keeps the same layout without colors.
+
 ## Verification and troubleshooting
 
-The setup suite runs 10 tests against the supplied helpers and CLI.
-Run the complete 22-test suite only after step 4:
+The setup suite runs 14 tests against the supplied helpers and CLI.
+Run the complete 26-test suite only after step 4:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -93,7 +109,7 @@ For a shorter trace, run this existing test after step 4:
 python -m unittest tests.test_limits.HarnessSafetyTests.test_run_agent_stops_after_the_maximum_number_of_format_retries -v
 ```
 
-Students should see `Retry 1/2:` and `Retry 2/2:` before the format-exhaustion test stops.
+Students should see `Harness: retry 1/2` and `Harness: retry 2/2` before the format-exhaustion test stops.
 The test catches that expected error; `OK` means the limit worked. Fake model and tool output in the full suite is also expected.
 Explain that `MAX_RETRIES = 2` means three attempts per action and `MAX_STEPS = 5` means five valid actions.
 The maximum is 15 model requests per question. API and tool failures do not enter the formatting retry path.
@@ -115,8 +131,8 @@ The API does not run the weather tool merely because a response matches the sche
 This is a production technique for response formatting, while native tool calling remains a separate API interface.
 See [Groq's schema requirements](https://console.groq.com/docs/structured-outputs) before changing the example.
 
-The offline suite contains 22 tests and works after either bonus mode.
-Its fake replies do not prove live schema enforcement. Compare the live `Model:` output with the supplied schema.
+The offline suite contains 26 tests and works after either bonus mode.
+Its fake replies do not prove live schema enforcement. Compare the live `Model reply (raw):` output with the supplied schema.
 Apply the bonus after the retry step on the student's branch from `main`.
 
 ## Prepare an instructor copy

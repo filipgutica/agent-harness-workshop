@@ -98,7 +98,7 @@ Check the supplied code before adding your key:
 python -m unittest tests.test_cli tests.test_model tests.test_protocol -q
 ```
 
-Expect **10 tests, OK**. These checks run offline and do not need an API key.
+Expect **14 tests, OK**. These checks run offline and do not need an API key.
 The full test suite is for the completed exercise, so do not run it yet.
 
 ## 3. Set your Groq key
@@ -148,7 +148,7 @@ The supplied model is [`openai/gpt-oss-120b` on Groq](https://console.groq.com/d
 python workshop.py --prompt "Reply with: ready"
 ```
 
-This command makes one live model request. Expect `Assistant:` followed by a short reply without an error.
+This command makes one live model request. Expect `Output:` followed by the model's text without an error.
 The wording can vary. Resolve any error before class.
 
 You are ready when you have your own branch, passing offline checks, and a successful live reply.

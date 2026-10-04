@@ -9,12 +9,43 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
+def print_log(label: str, message: str) -> None:
+    """Print a labeled terminal message with readable indentation and color.
+
+    Internal processing is indented; Output and Error stay at the left edge.
+    Indent continuation lines beneath their message. Color only the label,
+    using the terminal's palette. Redirected output, NO_COLOR, and TERM=dumb
+    stay plain text. Error messages use stderr; other messages use stdout.
+    This helper changes presentation only, not model messages or tool data.
+    """
+    stream = sys.stderr if label == "Error" else sys.stdout
+    indent = "" if label in ("Output", "Error") else "  "
+    styles = {
+        "Harness": "2",
+        "Model input (latest message)": "36",
+        "Model reply (raw)": "36",
+        "Tool result (data)": "33",
+        "Output": "1;32",
+        "Error": "1;31",
+    }
+    heading = f"{label}:"
+    # Terminal colors are decoration; labels still identify every message without them.
+    if stream.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb":
+        heading = f"\033[{styles.get(label, '2')}m{heading}\033[0m"
+    lines = message.splitlines() or [""]
+    print(f"{indent}{heading} {lines[0]}", file=stream, flush=True)
+    for line in lines[1:]:
+        print(f"{indent}  {line}", file=stream, flush=True)
+
+
 def call_model(messages: list[dict[str, str]], *, response_format: dict | None = None) -> str:
     """Send the conversation to Groq and return the assistant's text.
 
     Read the API key and optional model override from the terminal environment.
     Forward response_format when the optional exercise requests JSON or a schema.
     Without it, use ordinary text output for the core exercise.
+    Trace the outgoing message count, roles, and latest content, then show
+    when the request waits for and receives a reply. Never log HTTP headers.
     Raise RuntimeError if the request fails or the reply has no usable text.
     This function does not interpret tool requests or execute tools.
     """
@@ -40,6 +71,15 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
         },
         method="POST",
     )
+    # Appending messages changes a Python list, not the remote model's state.
+    # Every HTTP request resends the full list, including any new tool result.
+    roles = " -> ".join(message["role"] for message in messages)
+    noun = "message" if len(messages) == 1 else "messages"
+    print_log("Harness", f"sending {len(messages)} {noun}: {roles} to {payload['model']}.")
+    if messages:
+        latest = messages[-1]
+        print_log("Model input (latest message)", f"[{latest['role']}]\n{latest['content']}")
+    print_log("Harness", "waiting for the model reply...")
     try:
         with urlopen(request, timeout=30) as response:
             data = json.load(response)
@@ -67,6 +107,7 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
         raise RuntimeError("Model API response did not contain assistant content.") from error
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError("Model API returned empty assistant content. Try another model.")
+    print_log("Harness", "received the model reply; returning its text.")
     return content
 
 
@@ -160,9 +201,12 @@ def dispatch_tool(action: dict) -> dict:
 
 
 def run_cli(answer):
-    """Read questions, pass each to the student's function, and print its answer.
+    """Read questions and print each value returned by the student's function.
 
     The answer argument is a function, such as run_agent, supplied by workshop.py.
+    Label its return value Output: because it can be model text, tool data, or
+    a final answer, depending on the workshop stage. This helper does not make
+    an additional model call or interpret the returned value.
     With --prompt, answer once and exit with status 1 for expected errors.
     Otherwise, keep prompting until /exit, /quit, EOF, or Ctrl-C. Show expected
     errors and let the user try again. Each question calls answer separately;
@@ -176,19 +220,24 @@ def run_cli(answer):
         if args.prompt is None:
             print("Type '/exit' or '/quit' to leave.")
         while True:
+            # --prompt supplies one question; interactive mode reads a new one each time.
             question = args.prompt if args.prompt is not None else input("You: ")
+            # Handle terminal commands locally rather than sending them to the model.
             if args.prompt is None and question.strip().lower() in ("/exit", "/quit"):
                 print("Goodbye.")
                 return
             try:
                 if not question.strip():
                     raise ValueError("Please enter a nonempty prompt.")
-                print("Assistant:", answer(question))
+                # answer runs the student's code; run_cli only prints its return value.
+                print_log("Output", answer(question))
             except (ValueError, RuntimeError) as error:
-                print(f"Error: {error}", file=sys.stderr)
+                print_log("Error", str(error))
+                # A one-shot command must report failure; interactive users can retry.
                 if args.prompt is not None:
                     raise SystemExit(1) from error
             if args.prompt is not None:
+                # Without --prompt, the loop continues to the next input instead.
                 return
     except (EOFError, KeyboardInterrupt):
         print("\nGoodbye.")
