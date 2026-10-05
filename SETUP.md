@@ -98,7 +98,7 @@ Check the supplied code before adding your key:
 python -m unittest tests.test_cli tests.test_model tests.test_protocol -q
 ```
 
-Expect **14 tests, OK**. These checks run offline and do not need an API key.
+Expect **15 tests, OK**. These checks run offline and do not need an API key.
 The full test suite is for the completed exercise, so do not run it yet.
 
 ## 3. Set your Groq key
@@ -165,8 +165,8 @@ During class, use this terminal to run the program; an editor's Run button may n
 | HTTP 400 during a tool-request step | Check for an old `GROQ_MODEL` override. Use the supplied `openai/gpt-oss-120b` default, then rerun once. Ask the instructor if it still fails. |
 | HTTP 403 or unavailable model | Check your account's model access in Groq Console. |
 | HTTP 429 | Pause live calls and check [Groq limits](https://console.groq.com/docs/rate-limits). Offline tests still work. |
-| Invalid JSON before workshop step 4 | Copy the full system prompt again, then rerun once. Ask the instructor if it still fails. |
-| Formatting retries are exhausted after workshop step 4 | Check the prompt and both functions against the complete README step 4 block. Do not keep increasing the retry limit. |
+| Invalid tool arguments | Compare `TOOLS` and the prompt with the README. The harness validates arguments before execution. |
+| Formatting retries are exhausted after workshop step 4 | Check `FORMAT_PROMPT` and `format_answer` against README step 4. Do not keep increasing the retry limit. |
 | A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
 | Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
 | `my-workshop` branch already exists | Run `git switch my-workshop` to resume. |

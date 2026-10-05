@@ -45,3 +45,8 @@ def geocoding_response():
         "latitude": 49.2827,
         "longitude": -123.1207,
     }]}
+
+
+def native_tool_call(*, call_id="call_weather", name="get_weather", arguments='{"location":"Vancouver"}'):
+    """A wire-format fixture, with arguments serialized exactly as the API returns them."""
+    return {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}

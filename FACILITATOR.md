@@ -13,162 +13,112 @@ places procedural and object-oriented programming before term 4. Internet Softwa
 Use that background to connect the harness to familiar ideas: input validation, function dispatch, state, and exception handling.
 Students may still be taking the API course and have different specializations. Introduce the model's message protocol explicitly.
 
-By the end, students should be able to trace a tool request from JSON text to an allowed Python call,
-explain why the model needs the request and result in its next conversation, and distinguish formatting retries from agent loop iterations.
-Keep Git checkpoints brief. Give Python syntax reminders where they help students follow the control flow.
-
-The starter is a small, runnable model call with comments and no TODO exceptions.
-Students edit only `workshop.py`; `helpers.py` contains the existing HTTP requests, validation, and terminal handling.
-Explain that moving HTTP code into another file does not make it an agent framework.
-The model still receives raw chat-completion requests.
+By the end, students should trace a native tool request to an allowed function, link its result by ID, and explain the model's next request.
+They should distinguish the tool loop from a separate answer-formatting retry loop.
+Students edit only `workshop.py`; supplied helpers own HTTP, validation, and CLI handling.
 
 Before presenting:
 
-- Keep a starter copy for the live edits and a separate solution copy for reference.
-- Use a large editor font and terminal font so students can read the code and output.
-- Check the live weather prompt and a direct-answer prompt with your own key.
-- Confirm students have their `my-workshop` branch, 14 passing setup tests, and a live reply.
-- Keep the setup terminal open. A new terminal needs its environment and key set again.
+- Keep starter and completed copies in separate directories.
+- Pilot every README stage, including native weather requests and both optional output modes.
+- Confirm students have their branch, 15 passing setup tests, and a live greeting.
+- Keep the setup terminal open so its environment and API key remain available.
 
 ## Schedule
 
 | Part | Minutes | Teaching focus | Check before moving on |
 | --- | ---: | --- | --- |
-| Starter | 4 | Input, two messages, a model call, output. | Students can find the model call. |
-| JSON prompt | 6 | A tool request is still just text. | Output contains a JSON `tool-call`. |
-| Tool execution | 7 | Python validates the request and fetches weather. | Output contains weather data. |
-| Agent loop | 10 | Add both the model request and tool result to history. | Weather data is followed by a final answer. |
-| Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 28 tests pass. |
-| Discussion | 3 | Explain what the harness owns. | Students can explain who executes the tool. |
+| Starter | 4 | System prompt, user question, assistant content. | Students find the model request. |
+| Native tool request | 6 | `tools` declaration and assistant `tool_calls`. | A weather request contains an ID and JSON argument text. |
+| Tool execution | 7 | Validate arguments and dispatch an allowed function. | Output shows weather data. |
+| Agent loop | 10 | Assistant request plus matching `tool` messages. | The next model call produces a weather answer. |
+| Formatting retries | 10 | Prompt-only JSON, local validation, bounded corrections. | Students distinguish both budgets; 30 tests pass. |
+| Discussion | 3 | Explain what the harness owns. | Students identify who executes tools. |
 
-Each of the four edits leaves a runnable program. Intermediate commits are optional; students commit the completed core after step 4.
-They replace complete blocks instead of filling scattered blanks.
-Keep the same command, `python workshop.py`, throughout.
+Each edit leaves a runnable program. Use **What is the temperature in Vancouver right now?** at every stage.
+Ask students to predict output before running it. After step 3, try Tokyo and a direct-answer question.
+A weather tool call makes two GET requests: geocoding and forecast. They are not separate agent loop iterations.
+Use the resolved city to discuss ambiguous names and the first-match geocoding policy.
+[Open-Meteo's current weather is a model estimate](https://open-meteo.com/en/docs#current).
 
-Use **What is the temperature in Vancouver right now?** at every stage.
-Before each run, ask students to predict the output. Pause for them to save, run, and compare it with the README.
-After step 3, try **What is the weather in Tokyo right now?** to show that the tool resolves other cities.
-Explain that one `get_weather` call performs two HTTP requests: geocoding, then forecast. These are not two agent loop iterations.
-The tool uses the first city match; add a country or region for ambiguous names and check the resolved location in the result.
-Then use **What is a Python dictionary?** to show that a direct answer skips the tool.
-Ask students to check one claim in that answer. Valid JSON and schema compliance do not guarantee factual accuracy.
+## Explain the boundaries
 
-Point to these boundaries as you teach:
+- `call_model` returns an assistant message dictionary, not just its text. It preserves native `tool_calls` and strips server metadata.
+- `dispatch_tool` decodes argument JSON, validates the function and arguments, and executes the allowlisted function.
+- `run_agent` records assistant replies and matching `tool` results, resends history, and enforces `MAX_STEPS`.
+- `parse_answer` checks the final JSON answer's syntax, fields, and nonempty string.
+- `format_answer` handles formatting separately; `answer_question` connects the phases.
 
-- `call_model` sends messages and returns text. It does not execute tools.
-- `parse_action` converts that text into a dictionary and checks its shape.
-- `dispatch_tool` allows only registered functions with valid arguments.
-- `request_action` records model replies, validates actions, and asks for bounded formatting corrections.
-- `run_agent` adds tool results to history and controls the tool loop.
+The model requests a tool but cannot execute the local function itself.
+The tool declaration's argument schema and final-answer schema have different purposes.
+The former describes a callable interface; the latter constrains the answer's structure.
+Local argument validation is still required before dispatch.
 
-The tool-execution stage intentionally prints raw weather JSON. It does not send that data back to the model yet.
-Step 3 adds the loop and produces a model-written answer. Step 4 adds bounded formatting retries.
-Use that difference to explain why a tool call and an agent loop are separate concepts.
+Read the message trace with students:
 
-Read the terminal labels aloud when comparing stages:
+```text
+[SYSTEM_PROMPT] + [USER_MESSAGE] + [ASSISTANT_MESSAGE] + [TOOL_MESSAGE]
+```
 
-- `Model reply (raw):` is text from the LLM, before the harness parses it.
-- `Model input (latest message):` shows the newest message sent in the full conversation.
-- `Harness:` explains the harness's validation, tool execution, and formatting retries.
-- `Tool result (data):` is data from the executed tool, added to the conversation in steps 3 and 4.
-- `Output:` is the value returned by `run_agent`, printed by `run_cli`. It is not a second model call.
+Show the assistant's `tool_calls[].id` and the matching `tool_call_id` on its result.
+Tool data comes from the harness. It is not a user message.
+Appending changes local history; the next HTTP request sends that history to the model.
+`Model reply (raw):` shows the assistant message before student processing, with server metadata omitted.
+`Output:` is the function's return value printed by the CLI, not another actor or implicit model request.
+Step 2 returns tool data; step 3 returns model-written text; step 4 explicitly adds a formatting request.
 
-In steps 0 and 1, `Output:` is the model's unchanged text. In step 2, it is response content or raw tool data.
-From step 3 onward, a successful `Output:` is response content after any tool calls.
-For a direct answer, the raw JSON and final text come from the same model reply.
-For weather, step 3 adds a second model call so the model can turn tool data into an answer.
-Use the README glossary before the demo. Connect `[SYSTEM_PROMPT]` to instructions and `[USER_MESSAGE]` to the question.
-Point to the next request including `[ASSISTANT_MESSAGE]` and another `[USER_MESSAGE]`: the model's tool request and the tool data.
-Explain that these labels map to API roles; our user-role tool result is a teaching convention, not a native `tool` message.
-Appending data only changes the local list. The next HTTP request sends the updated history to Groq and waits for its reply.
+## Verify and rehearse
 
-## Verification and troubleshooting
-
-The setup suite runs 14 tests against the supplied helpers and CLI.
-Run the complete 28-test suite only after step 4:
+Setup runs 15 offline helper/CLI tests. Run all 30 tests only after README step 4:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-The agent tests describe the final behavior and will fail on the starter or intermediate stages.
-All tests are offline. They cannot prove that a hosted model follows the prompt or uses readings accurately.
-Compare the live final answer with the tool's readings, units, timestamp, and source.
-[Open-Meteo returns weather model estimates](https://open-meteo.com/en/docs#current), so describe the data as estimates.
+Tests use fake responses. They prove protocol handling and limits, not live model behavior or factual accuracy.
+Compare live weather answers with the tool data, including location, units, timestamp, timezone, and source.
+Check [model access](https://console.groq.com/docs/models) and [rate limits](https://console.groq.com/docs/rate-limits) before class.
+A greeting alone does not verify native tool calling or strict output support. Rehearse those requests separately.
+The default model is `openai/gpt-oss-120b`; pilot all stages if you override it.
+Each student uses their own key. For access failures, use [SETUP troubleshooting](SETUP.md#troubleshooting) or pair students.
 
-Check Groq model access and [rate limits](https://console.groq.com/docs/rate-limits) before class.
-The default is [`openai/gpt-oss-120b`](https://console.groq.com/docs/models). If you change `GROQ_MODEL`, pilot every stage and both bonus modes first.
-In the student rehearsal, `openai/gpt-oss-20b` returned HTTP 400 for the core weather request and JSON mode;
-the same prompts worked on 120B. A successful setup greeting alone does not verify tool requests.
-A successful weather interaction normally uses two model requests when no formatting retry is needed. Each student should use their own key.
-If access fails, use [setup troubleshooting](SETUP.md#troubleshooting) and pair the student with someone whose setup works.
-
-An honest admission of uncertainty is a valid starter result; the lesson does not depend on hallucination.
-Native tool calling, additional tools, and retries for network or service failures belong in a later exercise.
-
-For the retry demonstration, use the offline suite's deliberately invalid replies.
-For a shorter trace, run this existing test after step 4:
+For an offline correction-loop demonstration after step 4:
 
 ```bash
-python -m unittest tests.test_limits.HarnessSafetyTests.test_run_agent_stops_after_the_maximum_number_of_format_retries -v
+python -m unittest tests.test_limits.HarnessSafetyTests.test_format_answer_stops_after_the_maximum_number_of_retries -v
 ```
 
-Students should see `Harness: retry 1/2` and `Harness: retry 2/2` before the format-exhaustion test stops.
-The test catches that expected error; `OK` means the limit worked. Fake model and tool output in the full suite is also expected.
-Explain that `MAX_RETRIES = 2` means three formatting attempts per action and `MAX_STEPS = 5` limits outer agent loop iterations.
-The iteration counter advances when the harness goes around the outer loop. A final response ends it early.
-The format-attempt counter stays within an iteration; a malformed reply never executes a tool.
-The maximum is 15 model requests per question. API and tool failures do not enter the formatting retry path.
+The deliberately invalid reply exhausts the budget; the test catches the error.
+`MAX_RETRIES = 2` means three formatting attempts after the tool loop.
+`MAX_STEPS = 5` means at most five requests within the tool loop.
+A direct answer ends the loop after one iteration; weather normally takes two.
+Step 4 adds one formatting call on success. The maximum is eight model requests per question.
+API and tool failures never enter the format-correction loop.
 
 ## Optional schema extension
 
-[README step 6](README.md#6-optional-enforce-a-json-schema) is for extra time or after class, outside the 40-minute core schedule.
-It compares JSON mode with strict schema enforcement on the same chat-completions endpoint.
-Students still edit only `workshop.py`; `call_model` accepts the optional `response_format` keyword argument.
+[README step 6](README.md#6-optional-enforce-a-json-schema) is outside the 40-minute core schedule.
+Present it as a way to replace increasingly complex prompt-only formatting and correction logic.
+JSON mode guarantees syntax; strict Structured Outputs guarantees a supported schema for successful, complete replies.
+Supplying a schema with `strict: false` gives best-effort adherence.
+[Groq currently cannot combine Structured Outputs with tool use](https://console.groq.com/docs/structured-outputs), so use the separate formatting request.
+The strict example removes the correction loop and `MAX_RETRIES`; retain parsing, application validation, and API/truncation handling.
+The example schema permits an empty string, while the local validator rejects it. Schema adherence alone does not prove facts.
 
-Pilot both bonus modes with the default model before demonstrating them.
-Keep the JSON instructions in the prompt when enabling JSON mode.
-For strict mode, point out that all fields are required and unused fields contain `null`.
-The bonus `request_action` removes those unused fields before applying the original action validator.
-
-Ask students which rules the schema enforces and which Python still enforces.
-The schema controls structure; Python checks the requested tool, arguments, and loop limit.
-The API does not run the weather tool merely because a response matches the schema.
-This is a production technique for response formatting, while native tool calling remains a separate API interface.
-See [Groq's schema requirements](https://console.groq.com/docs/structured-outputs) before changing the example.
-
-The offline suite contains 28 tests and works after either bonus mode.
-Its fake replies do not prove live schema enforcement. Compare the live `Model reply (raw):` output with the supplied schema.
-Apply the bonus after the retry step on the student's branch from `main`.
+Step 4's formatter-retry tests no longer describe the strict formatter. The README gives the 24 unchanged helper/native-agent checks to run instead.
+Then rehearse the strict request live; mock tests cannot establish the provider guarantee.
 
 ## Prepare an instructor copy
 
-Use current `main` for your reference copy so it includes the supplied helper fixes.
-From a fresh clone, run one code block at a time, in order.
-
-Create a separate worktree:
+Use current `main` for a starter with compatible helpers. Create a separate reference worktree:
 
 ```bash
 git worktree add --detach ../agent-harness-workshop-reference main
 ```
 
-Move into that directory:
-
 ```bash
 cd ../agent-harness-workshop-reference
 ```
 
-Apply the Python changes in README steps 1–4 in that directory, then run the complete offline suite:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-Run the reference program:
-
-```bash
-python workshop.py
-```
-
-Keep the setup terminal open so its Python environment and Groq key remain available.
-The historical `solution` branch contains the original three-step loop and older helpers. Use it only to read the earlier implementation.
+Follow README steps 1–4 in order, then run the complete offline suite and a live weather question.
+The historical `solution` branch uses the older custom text protocol; it is not the solution for this native-tool workshop.

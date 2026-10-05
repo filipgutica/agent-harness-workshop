@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
 
 import helpers as workshop
+from tests.support import native_tool_call
 
 from tests.support import FakeResponse, geocoding_response, weather_response
 
@@ -121,43 +122,21 @@ class WeatherToolTests(unittest.TestCase):
 
     def test_dispatch_tool_calls_the_allowed_tool(self):
         expected = {"location": "Vancouver", "source": "test"}
-
         with patch.object(workshop, "get_weather", return_value=expected) as weather:
-            result = workshop.dispatch_tool(
-                {
-                    "action": "tool-call",
-                    "tool": "get_weather",
-                    "parameters": {"location": "Vancouver"},
-                }
-            )
-
+            result = workshop.dispatch_tool(native_tool_call())
         self.assertEqual(result, expected)
         weather.assert_called_once_with(location="Vancouver")
 
     def test_dispatch_tool_rejects_unknown_tools_and_bad_parameters(self):
-        invalid_actions = [
-            {
-                "action": "tool-call",
-                "tool": "send_email",
-                "parameters": {"location": "Vancouver"},
-            },
-            {
-                "action": "tool-call",
-                "tool": "get_weather",
-                "parameters": {"location": 123},
-            },
-            {
-                "action": "tool-call",
-                "tool": "get_weather",
-                "parameters": {"location": "Vancouver", "extra": True},
-            },
-        ]
-
+        invalid_calls = [native_tool_call(name="send_email")]
+        invalid_calls += [native_tool_call(arguments=raw) for raw in [
+            "not JSON", "[]", "{}", '{"location":123}', '{"location":""}',
+            '{"location":"Vancouver","extra":true}',
+        ]]
         with patch.object(workshop, "get_weather") as weather:
-            for action in invalid_actions:
-                with self.subTest(action=action), self.assertRaises(ValueError):
-                    workshop.dispatch_tool(action)
-
+            for tool_call in invalid_calls:
+                with self.subTest(tool_call=tool_call), self.assertRaises(ValueError):
+                    workshop.dispatch_tool(tool_call)
         weather.assert_not_called()
 
 

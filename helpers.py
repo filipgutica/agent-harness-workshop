@@ -46,17 +46,21 @@ def print_log(label: str, message: str) -> None:
         print(f"{indent}  {line}", file=stream, flush=True)
 
 
-def call_model(messages: list[dict[str, str]], *, response_format: dict | None = None) -> str:
-    """Send the conversation to Groq and return the assistant's text.
+def call_model(
+    messages: list[dict], *, tools: list[dict] | None = None,
+    response_format: dict | None = None,
+) -> dict:
+    """Send history to Groq and return a validated assistant message dictionary.
 
-    Read the API key and optional model override from the terminal environment.
-    Forward response_format when the optional exercise requests JSON or a schema.
-    Without it, use ordinary text output for the core exercise.
-    Trace the outgoing message count, named roles, and latest content, then show
-    when the request waits for and receives a reply. Never log HTTP headers.
-    Raise RuntimeError if the request fails or the reply has no usable text.
-    This function does not interpret tool requests or execute tools.
+    Preserve native tool_calls and their IDs, including replies with null content.
+    Optional tools describe callable functions; this helper never executes them.
+    Optional response_format controls a separate final-answer formatting request.
+    Groq does not support combining tools and Structured Outputs in one request.
+    Trace messages and request progress without logging headers or credentials.
+    Raise RuntimeError for transport failures or malformed assistant envelopes.
     """
+    if tools is not None and response_format is not None:
+        raise ValueError("Use response_format in a separate request without tools.")
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key or api_key == "replace-with-your-own-key":
         raise RuntimeError("Set GROQ_API_KEY in your terminal first.")
@@ -65,6 +69,8 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
         "messages": messages,
         "max_tokens": 2048,
     }
+    if tools is not None:
+        payload["tools"] = tools
     if response_format is not None:
         payload["response_format"] = response_format
     request = Request(
@@ -81,7 +87,7 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     )
     # Appending messages changes a Python list, not the remote model's state.
     # Every HTTP request resends the full list, including any new tool result.
-    # These teaching labels explain API roles; the request still uses system/user/assistant.
+    # Teaching labels explain API roles; the request uses system/user/assistant/tool.
     role_labels = {
         "system": "SYSTEM_PROMPT",
         "user": "USER_MESSAGE",
@@ -97,7 +103,10 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     if messages:
         latest = messages[-1]
         label = role_labels.get(latest["role"], latest["role"].upper())
-        print_log("Model input (latest message)", f"[{label}]\n{latest['content']}")
+        latest_content = latest.get("content")
+        if latest_content is None:
+            latest_content = json.dumps(latest.get("tool_calls", []), ensure_ascii=False)
+        print_log("Model input (latest message)", f"[{label}]\n{latest_content}")
     print_log("Harness", "waiting for the model reply...")
     try:
         with urlopen(request, timeout=30) as response:
@@ -117,47 +126,70 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     except (ValueError, UnicodeError) as error:
         raise RuntimeError("Model API returned an invalid JSON response.") from error
     try:
-        # Groq wraps the assistant's text inside choices[0].message.content.
         choice = data["choices"][0]
         if choice.get("finish_reason") == "length":
             raise RuntimeError("Model output was truncated. Try a shorter prompt or another model.")
-        content = choice["message"]["content"]
-    except (KeyError, IndexError, TypeError, AttributeError) as error:
-        raise RuntimeError("Model API response did not contain assistant content.") from error
-    if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("Model API returned empty assistant content. Try another model.")
-    print_log("Harness", "received the model reply; returning its text.")
-    return content
+        message = choice["message"]
+        if message["role"] != "assistant":
+            raise ValueError("Expected an assistant message.")
+        content = message.get("content")
+        tool_calls = message.get("tool_calls")
+        if content is not None and not isinstance(content, str):
+            raise ValueError("Assistant content must be text or null.")
+        if tool_calls is not None and not isinstance(tool_calls, list):
+            raise ValueError("tool_calls must be a list.")
+        if tool_calls:
+            if tools is None:
+                raise ValueError("Received a tool request without declaring tools.")
+            ids = set()
+            for tool_call in tool_calls:
+                validate_tool_call(tool_call)
+                if tool_call["id"] in ids:
+                    raise ValueError("Tool call IDs must be unique within a reply.")
+                ids.add(tool_call["id"])
+        elif not content or not content.strip():
+            raise ValueError("Expected assistant text or tool_calls.")
+    except (KeyError, IndexError, TypeError, AttributeError, ValueError) as error:
+        raise RuntimeError("Model API returned an invalid assistant message.") from error
+    # Resend only conversation fields, not server metadata such as reasoning.
+    reply = {"role": "assistant", "content": content}
+    if tool_calls:
+        reply["tool_calls"] = tool_calls
+    print_log("Harness", "received the model reply; returning its assistant message.")
+    return reply
 
 
-def parse_action(raw: str) -> dict:
-    """Convert model text into a validated response or tool-call dictionary.
+def validate_tool_call(tool_call: dict) -> None:
+    """Check the native request envelope before it is stored or dispatched.
 
-    Require the workshop's agreed JSON fields before the harness uses them.
-    Raise ValueError for invalid JSON or an unexpected shape. Tool names and
-    tool-specific arguments are checked separately by dispatch_tool.
+    Argument JSON and the allowed function are checked by dispatch_tool.
+    """
+    if not isinstance(tool_call, dict) or tool_call.get("type") != "function":
+        raise ValueError("Expected a function tool call.")
+    if not isinstance(tool_call.get("id"), str) or not tool_call["id"].strip():
+        raise ValueError("Tool call requires a nonempty ID.")
+    function = tool_call.get("function")
+    if (not isinstance(function, dict) or not isinstance(function.get("name"), str)
+            or not function["name"].strip()):
+        raise ValueError("Tool call requires a function name.")
+    if not isinstance(function.get("arguments"), str):
+        raise ValueError("Tool arguments must be JSON text.")
+
+
+def parse_answer(raw: str) -> dict:
+    """Validate the final JSON answer locally, including prompt-only JSON replies.
+
+    Accept exactly one nonempty answer string. This validates shape, not facts.
     """
     try:
-        action = json.loads(raw)
-    except ValueError as error:
-        raise ValueError("Model output must be a JSON object without Markdown fences.") from error
-    if not isinstance(action, dict):
-        raise ValueError("Action must be a JSON object.")
-    if action.get("action") == "response":
-        if set(action) != {"action", "content"}:
-            raise ValueError("Response requires exactly action and content.")
-        if not isinstance(action["content"], str) or not action["content"].strip():
-            raise ValueError("Response content must be a nonempty string.")
-    elif action.get("action") == "tool-call":
-        if set(action) != {"action", "tool", "parameters"}:
-            raise ValueError("Tool call requires exactly action, tool, and parameters.")
-        if not isinstance(action["tool"], str) or not action["tool"].strip():
-            raise ValueError("Tool must be a nonempty string.")
-        if not isinstance(action["parameters"], dict):
-            raise ValueError("Tool parameters must be an object.")
-    else:
-        raise ValueError("Unknown action. Expected response or tool-call.")
-    return action
+        answer = json.loads(raw)
+    except (ValueError, TypeError) as error:
+        raise ValueError("Return a JSON object without Markdown fences.") from error
+    if not isinstance(answer, dict) or set(answer) != {"answer"}:
+        raise ValueError("JSON answer requires exactly the answer field.")
+    if not isinstance(answer["answer"], str) or not answer["answer"].strip():
+        raise ValueError("JSON answer must contain a nonempty string.")
+    return answer
 
 
 def _weather_api_json(request: Request, *, service: str) -> dict:
@@ -240,22 +272,28 @@ def get_weather(*, location: str) -> dict:
     }
 
 
-def dispatch_tool(action: dict) -> dict:
-    """Execute an allowed tool request after parse_action validates its shape.
+def dispatch_tool(tool_call: dict) -> dict:
+    """Validate and execute one native tool call through the local allowlist.
 
-    Check the tool name and its arguments, then return the tool's result.
-    Raise ValueError for an unknown tool or invalid arguments. The registry
-    below is the list of functions the model may request; the harness runs them.
+    The API supplies function.arguments as JSON text. Decode it, require exactly
+    one nonempty location string, and call a known function. Never evaluate model
+    code. Raise ValueError for invalid requests; tool/API errors propagate.
     """
+    validate_tool_call(tool_call)
     tools = {"get_weather": get_weather}
-    tool_name = action["tool"]
+    function = tool_call["function"]
+    tool_name = function["name"]
     if tool_name not in tools:
         raise ValueError(f"Unknown tool: {tool_name}")
-    parameters = action["parameters"]
-    if set(parameters) != {"location"} or not isinstance(parameters["location"], str):
-        raise ValueError("get_weather requires exactly one string parameter: location.")
-    # Look up a known function rather than executing code supplied by the model.
-    return tools[tool_name](location=parameters['location'])
+    try:
+        parameters = json.loads(function["arguments"])
+    except ValueError as error:
+        raise ValueError("Tool arguments must be valid JSON.") from error
+    if (not isinstance(parameters, dict) or set(parameters) != {"location"}
+            or not isinstance(parameters["location"], str) or not parameters["location"].strip()):
+        raise ValueError("get_weather requires exactly one nonempty string parameter: location.")
+    # Choose a registered function; never execute code supplied by the model.
+    return tools[tool_name](location=parameters["location"])
 
 
 def run_cli(answer):
