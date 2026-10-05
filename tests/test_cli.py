@@ -19,15 +19,22 @@ class CliTests(unittest.TestCase):
         for is_terminal, environment, colored in cases:
             with self.subTest(is_terminal=is_terminal, environment=environment):
                 output = io.StringIO()
-                with patch("sys.argv", ["workshop.py", "--prompt", "hello"]), patch.dict(
+                with patch("sys.argv", ["workshop.py"]), patch(
+                    "builtins.input", side_effect=["hello", "/quit"]
+                ) as read_question, patch.dict(
                     os.environ, environment, clear=True
                 ), patch.object(output, "isatty", return_value=is_terminal), redirect_stdout(output):
                     run_cli(lambda question: "First line\nSecond line")
 
                 rendered = output.getvalue()
                 self.assertEqual("\033[" in rendered, colored)
+                expected_prompt = "\033[1;34mYou:\033[0m " if colored else "You: "
+                self.assertEqual(read_question.call_args.args[0], expected_prompt)
                 plain = re.sub(r"\033\[[0-9;]*m", "", rendered)
-                self.assertEqual(plain, "Output: First line\n  Second line\n")
+                self.assertEqual(
+                    plain,
+                    "Type '/exit' or '/quit' to leave.\nOutput: First line\n  Second line\nGoodbye.\n",
+                )
 
     def test_cli_passes_the_question_to_the_application(self):
         answer = Mock(return_value="Hello from the model")

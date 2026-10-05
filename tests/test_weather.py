@@ -1,4 +1,6 @@
+import io
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
@@ -9,17 +11,23 @@ from tests.support import FakeResponse, weather_response
 
 class WeatherToolTests(unittest.TestCase):
     def test_get_weather_returns_the_current_weather_data(self):
+        output = io.StringIO()
         with patch.object(
             workshop, "urlopen", return_value=FakeResponse(weather_response())
-        ) as mocked_urlopen:
+        ) as mocked_urlopen, redirect_stdout(output):
             result = workshop.get_weather(location=" vAnCoUvEr ")
 
+        self.assertIn(
+            "Harness: get_weather: GET https://api.open-meteo.com/v1/forecast (current weather for Vancouver).",
+            output.getvalue(),
+        )
         self.assertEqual(result["location"], "Vancouver")
         self.assertEqual(result["source"], "Open-Meteo")
         self.assertEqual(result["current"], weather_response()["current"])
         self.assertEqual(result["units"], weather_response()["current_units"])
         mocked_urlopen.assert_called_once()
         request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(request.get_method(), "GET")
         timeout = mocked_urlopen.call_args.kwargs["timeout"]
         query = parse_qs(urlparse(request.full_url).query)
         self.assertEqual(query["latitude"], ["49.2827"])

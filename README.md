@@ -214,6 +214,7 @@ For a weather question, the last line has a different source:
   Model reply (raw): {"action":"tool-call","tool":"get_weather","parameters":{"location":"Vancouver"}}
   Harness: validating the model reply.
   Harness: executing tool: get_weather
+  Harness: get_weather: GET https://api.open-meteo.com/v1/forecast (current weather for Vancouver).
   Harness: returning raw tool data; it has not been sent back to the model.
 Output: <weather JSON returned by the tool>
 ```
@@ -223,6 +224,8 @@ Three supplied helpers do the supporting work:
 - `call_model(messages)` sends the conversation to Groq and returns text.
 - `parse_action(reply)` reads the JSON and checks its shape.
 - `dispatch_tool(action)` checks the tool name and arguments, then calls the weather API.
+
+The weather tool traces its HTTP method and API endpoint: a `GET` request to Open-Meteo for current Vancouver weather.
 
 `print_log(label, message)` only formats terminal output. It does not change the conversation or execute an action.
 
@@ -316,6 +319,7 @@ Run `python workshop.py` and ask the weather question.
   Model reply (raw): <JSON tool request>
   Harness: validating the model reply.
   Harness: executing tool: get_weather
+  Harness: get_weather: GET https://api.open-meteo.com/v1/forecast (current weather for Vancouver).
   Tool result (data): <weather data>
   Harness: added tool data to the conversation for the next model call.
   Harness: starting agent loop iteration 2 (limit: 5 per question).

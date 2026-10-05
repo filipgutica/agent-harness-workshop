@@ -9,18 +9,11 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-def print_log(label: str, message: str) -> None:
-    """Print a labeled terminal message with readable indentation and color.
-
-    Internal processing is indented; Output and Error stay at the left edge.
-    Indent continuation lines beneath their message. Color only the label,
-    using the terminal's palette. Redirected output, NO_COLOR, and TERM=dumb
-    stay plain text. Error messages use stderr; other messages use stdout.
-    This helper changes presentation only, not model messages or tool data.
-    """
+def _format_label(label: str) -> str:
+    """Style a prompt or log label when its output stream supports color."""
     stream = sys.stderr if label == "Error" else sys.stdout
-    indent = "" if label in ("Output", "Error") else "  "
     styles = {
+        "You": "1;34",
         "Harness": "2",
         "Model input (latest message)": "36",
         "Model reply (raw)": "36",
@@ -32,6 +25,21 @@ def print_log(label: str, message: str) -> None:
     # Terminal colors are decoration; labels still identify every message without them.
     if stream.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb":
         heading = f"\033[{styles.get(label, '2')}m{heading}\033[0m"
+    return heading
+
+
+def print_log(label: str, message: str) -> None:
+    """Print a labeled terminal message with readable indentation and color.
+
+    Internal processing is indented; Output and Error stay at the left edge.
+    Indent continuation lines beneath their message. Color only the label,
+    using the terminal's palette. Redirected output, NO_COLOR, and TERM=dumb
+    stay plain text. Error messages use stderr; other messages use stdout.
+    This helper changes presentation only, not model messages or tool data.
+    """
+    stream = sys.stderr if label == "Error" else sys.stdout
+    indent = "" if label in ("Output", "Error") else "  "
+    heading = _format_label(label)
     lines = message.splitlines() or [""]
     print(f"{indent}{heading} {lines[0]}", file=stream, flush=True)
     for line in lines[1:]:
@@ -158,6 +166,7 @@ def get_weather(*, location: str) -> dict:
     Return readings, units, a timestamp, and source attribution for the model.
     Reject other locations with ValueError; report API failures or missing data
     with RuntimeError. Fixed coordinates keep this workshop to one city.
+    Trace the HTTP method and API endpoint before making the weather request.
     """
     if not isinstance(location, str) or location.strip().lower() != "vancouver":
         raise ValueError("Weather supports only Vancouver.")
@@ -168,6 +177,9 @@ def get_weather(*, location: str) -> dict:
         "timezone": "America/Vancouver",
     })
     request = Request(f"https://api.open-meteo.com/v1/forecast?{query}")
+    # Show the tool's actual API call after the harness accepts the model's request.
+    endpoint = request.full_url.split("?", 1)[0]
+    print_log("Harness", f"get_weather: {request.get_method()} {endpoint} (current weather for Vancouver).")
     try:
         with urlopen(request, timeout=30) as response:
             data = json.load(response)
@@ -232,7 +244,7 @@ def run_cli(answer):
             print("Type '/exit' or '/quit' to leave.")
         while True:
             # --prompt supplies one question; interactive mode reads a new one each time.
-            question = args.prompt if args.prompt is not None else input("You: ")
+            question = args.prompt if args.prompt is not None else input(f"{_format_label('You')} ")
             # Handle terminal commands locally rather than sending them to the model.
             if args.prompt is None and question.strip().lower() in ("/exit", "/quit"):
                 print("Goodbye.")
