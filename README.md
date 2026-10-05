@@ -42,7 +42,7 @@ In this workshop, each message is a dictionary with `role` and text `content` fi
 The role values come from the [Groq Chat Completions API](https://console.groq.com/docs/api-reference).
 They follow the [OpenAI-compatible API format](https://console.groq.com/docs/openai); they are not Python keywords or a universal format for every LLM API.
 
-| API `role` | Trace label | Purpose here |
+| Message `role` | Trace label | Purpose here |
 | --- | --- | --- |
 | `system` | `[SYSTEM_PROMPT]` | The harness's instructions, stored in `SYSTEM_PROMPT`. |
 | `user` | `[USER_MESSAGE]` | Your question, or tool data and correction feedback supplied by the harness. |
