@@ -160,49 +160,84 @@ def parse_action(raw: str) -> dict:
     return action
 
 
-def get_weather(*, location: str) -> dict:
-    """Fetch current weather estimates for Vancouver from Open-Meteo.
-
-    Return readings, units, a timestamp, and source attribution for the model.
-    Reject other locations with ValueError; report API failures or missing data
-    with RuntimeError. Fixed coordinates keep this workshop to one city.
-    Trace the HTTP method and API endpoint before making the weather request.
-    """
-    if not isinstance(location, str) or location.strip().lower() != "vancouver":
-        raise ValueError("Weather supports only Vancouver.")
-    query = urlencode({
-        "latitude": 49.2827,
-        "longitude": -123.1207,
-        "current": "temperature_2m,apparent_temperature,precipitation",
-        "timezone": "America/Vancouver",
-    })
-    request = Request(f"https://api.open-meteo.com/v1/forecast?{query}")
-    # Show the tool's actual API call after the harness accepts the model's request.
-    endpoint = request.full_url.split("?", 1)[0]
-    print_log("Harness", f"get_weather: {request.get_method()} {endpoint} (current weather for Vancouver).")
+def _weather_api_json(request: Request, *, service: str) -> dict:
+    """Read a JSON object from either Open-Meteo API and report request failures."""
     try:
         with urlopen(request, timeout=30) as response:
             data = json.load(response)
     except HTTPError as error:
         error.close()
-        raise RuntimeError(f"Weather API returned HTTP {error.code}.") from error
+        raise RuntimeError(f"{service} API returned HTTP {error.code}.") from error
     except (URLError, TimeoutError) as error:
-        raise RuntimeError("Weather API unavailable or timed out. Try again later.") from error
+        raise RuntimeError(f"{service} API unavailable or timed out. Try again later.") from error
     except (ValueError, UnicodeError) as error:
-        raise RuntimeError("Weather API returned invalid JSON.") from error
+        raise RuntimeError(f"{service} API returned invalid JSON.") from error
     if not isinstance(data, dict):
-        raise RuntimeError("Weather API returned an invalid object.")
+        raise RuntimeError(f"{service} API returned an invalid object.")
+    return data
+
+
+def get_weather(*, location: str) -> dict:
+    """Look up a city's coordinates, then fetch current weather from Open-Meteo.
+
+    Use the first geocoding match; a country or region can narrow the city name.
+    Return the resolved location, readings, units, local timezone, timestamp,
+    and source attribution for the model. Reject empty or unmatched locations
+    with ValueError; report API failures or malformed data with RuntimeError.
+    Trace both HTTP requests so students can follow the tool's work.
+    """
+    if not isinstance(location, str) or not location.strip():
+        raise ValueError("Weather requires a nonempty city name.")
+    location = location.strip()
+    # The forecast API needs coordinates. Geocoding translates the city's name.
+    lookup_query = urlencode({"name": location, "count": 1, "language": "en", "format": "json"})
+    lookup = Request(f"https://geocoding-api.open-meteo.com/v1/search?{lookup_query}")
+    endpoint = lookup.full_url.split("?", 1)[0]
+    print_log("Harness", f"get_weather: {lookup.get_method()} {endpoint} (finding coordinates for {location}).")
+    matches = _weather_api_json(lookup, service="Geocoding").get("results", [])
+    if not isinstance(matches, list):
+        raise RuntimeError("Geocoding API returned invalid location results.")
+    if not matches:
+        raise ValueError(f"No city found for {location!r}. Try adding a country or region.")
+    city = matches[0]
+    if not isinstance(city, dict) or not isinstance(city.get("name"), str) or not city["name"].strip():
+        raise RuntimeError("Geocoding API returned an invalid city name.")
+    # Never send missing, nonnumeric, or out-of-range coordinates to the forecast API.
+    for field, lower, upper in (("latitude", -90, 90), ("longitude", -180, 180)):
+        value = city.get(field)
+        if type(value) not in (int, float) or not lower <= value <= upper:
+            raise RuntimeError(f"Geocoding API returned an invalid {field}.")
+    # Report the actual match, so similarly named cities are distinguishable.
+    resolved_location = ", ".join(
+        city[field].strip() for field in ("name", "admin1", "country")
+        if isinstance(city.get(field), str) and city[field].strip()
+    )
+    query = urlencode({
+        "latitude": city["latitude"],
+        "longitude": city["longitude"],
+        "current": "temperature_2m,apparent_temperature,precipitation",
+        "timezone": "auto",  # Resolve local time from the chosen coordinates.
+    })
+    request = Request(f"https://api.open-meteo.com/v1/forecast?{query}")
+    endpoint = request.full_url.split("?", 1)[0]
+    print_log("Harness", f"get_weather: {request.get_method()} {endpoint} (current weather for {resolved_location}).")
+    data = _weather_api_json(request, service="Weather")
     current = data.get("current")
     units = data.get("current_units")
     if not isinstance(current, dict) or not isinstance(units, dict):
         raise RuntimeError("Weather API response is missing current conditions or units.")
     if not isinstance(current.get("time"), str) or not current["time"].strip():
         raise RuntimeError("Weather API response is missing its timestamp.")
+    if not isinstance(data.get("timezone"), str) or not data["timezone"].strip():
+        raise RuntimeError("Weather API response is missing its timezone.")
     # Check that the model will receive every requested reading and its unit.
     for field in ("temperature_2m", "apparent_temperature", "precipitation"):
         if type(current.get(field)) not in (int, float) or not isinstance(units.get(field), str):
             raise RuntimeError(f"Weather API response is missing a reading or unit: {field}.")
-    return {"location": "Vancouver", "source": "Open-Meteo", "current": current, "units": units}
+    return {
+        "location": resolved_location, "source": "Open-Meteo", "timezone": data["timezone"],
+        "current": current, "units": units,
+    }
 
 
 def dispatch_tool(action: dict) -> dict:

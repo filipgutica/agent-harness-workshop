@@ -21,6 +21,7 @@ class FakeResponse:
 
 def weather_response():
     return {
+        "timezone": "America/Vancouver",
         "current": {
             "time": "2026-09-13T12:00",
             "temperature_2m": 14.5,
@@ -34,3 +35,13 @@ def weather_response():
             "precipitation": "mm",
         },
     }
+
+
+def geocoding_response():
+    return {"results": [{
+        "name": "Vancouver",
+        "admin1": "British Columbia",
+        "country": "Canada",
+        "latitude": 49.2827,
+        "longitude": -123.1207,
+    }]}

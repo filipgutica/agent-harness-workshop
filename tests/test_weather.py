@@ -2,56 +2,122 @@ import io
 import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
 
 import helpers as workshop
 
-from tests.support import FakeResponse, weather_response
+from tests.support import FakeResponse, geocoding_response, weather_response
 
 
 class WeatherToolTests(unittest.TestCase):
     def test_get_weather_returns_the_current_weather_data(self):
-        output = io.StringIO()
-        with patch.object(
-            workshop, "urlopen", return_value=FakeResponse(weather_response())
-        ) as mocked_urlopen, redirect_stdout(output):
-            result = workshop.get_weather(location=" vAnCoUvEr ")
+        cities = (
+            (" vAnCoUvEr ", "Vancouver", "British Columbia", "Canada", 49.2827, -123.1207, "America/Vancouver"),
+            ("Toronto", "Toronto", "Ontario", "Canada", 43.70011, -79.4163, "America/Toronto"),
+            ("Paris, France", "Paris", "Île-de-France", "France", 48.85341, 2.3488, "Europe/Paris"),
+            ("Tokyo", "Tokyo", "Tokyo", "Japan", 35.6895, 139.69171, "Asia/Tokyo"),
+        )
+        for requested, name, region, country, latitude, longitude, timezone in cities:
+            with self.subTest(city=requested):
+                match = {"results": [{
+                    "name": name, "admin1": region, "country": country,
+                    "latitude": latitude, "longitude": longitude,
+                }]}
+                forecast = weather_response()
+                forecast["timezone"] = timezone
+                output = io.StringIO()
+                with patch.object(workshop, "urlopen", side_effect=[
+                    FakeResponse(match), FakeResponse(forecast),
+                ]) as http, redirect_stdout(output):
+                    result = workshop.get_weather(location=requested)
 
-        self.assertIn(
-            "Harness: get_weather: GET https://api.open-meteo.com/v1/forecast (current weather for Vancouver).",
-            output.getvalue(),
-        )
-        self.assertEqual(result["location"], "Vancouver")
-        self.assertEqual(result["source"], "Open-Meteo")
-        self.assertEqual(result["current"], weather_response()["current"])
-        self.assertEqual(result["units"], weather_response()["current_units"])
-        mocked_urlopen.assert_called_once()
-        request = mocked_urlopen.call_args.args[0]
-        self.assertEqual(request.get_method(), "GET")
-        timeout = mocked_urlopen.call_args.kwargs["timeout"]
-        query = parse_qs(urlparse(request.full_url).query)
-        self.assertEqual(query["latitude"], ["49.2827"])
-        self.assertEqual(query["longitude"], ["-123.1207"])
-        self.assertEqual(
-            query["current"], ["temperature_2m,apparent_temperature,precipitation"]
-        )
-        self.assertEqual(query["timezone"], ["America/Vancouver"])
-        self.assertEqual(timeout, 30)
+                self.assertEqual(result["location"], f"{name}, {region}, {country}")
+                self.assertEqual(result["source"], "Open-Meteo")
+                self.assertEqual(result["timezone"], timezone)
+                self.assertEqual(result["current"], forecast["current"])
+                self.assertEqual(result["units"], forecast["current_units"])
+                self.assertEqual(http.call_count, 2)
+                lookup, weather = [call.args[0] for call in http.call_args_list]
+                self.assertEqual(lookup.get_method(), "GET")
+                self.assertEqual(weather.get_method(), "GET")
+                self.assertEqual(lookup.full_url.split("?", 1)[0], "https://geocoding-api.open-meteo.com/v1/search")
+                self.assertEqual(weather.full_url.split("?", 1)[0], "https://api.open-meteo.com/v1/forecast")
+                self.assertEqual(parse_qs(urlparse(lookup.full_url).query)["name"], [requested.strip()])
+                query = parse_qs(urlparse(weather.full_url).query)
+                self.assertEqual(query["latitude"], [str(latitude)])
+                self.assertEqual(query["longitude"], [str(longitude)])
+                self.assertEqual(query["current"], ["temperature_2m,apparent_temperature,precipitation"])
+                self.assertEqual(query["timezone"], ["auto"])
+                self.assertTrue(all(call.kwargs["timeout"] == 30 for call in http.call_args_list))
+                trace = output.getvalue()
+                self.assertIn("get_weather: GET https://geocoding-api.open-meteo.com/v1/search", trace)
+                self.assertIn(
+                    f"get_weather: GET https://api.open-meteo.com/v1/forecast (current weather for {name}, {region}, {country}).",
+                    trace,
+                )
 
     def test_get_weather_rejects_unknown_locations(self):
-        with patch.object(workshop, "urlopen") as mocked_urlopen:
-            with self.assertRaises(ValueError):
-                workshop.get_weather(location="Toronto")
+        for body in ({}, {"results": []}):
+            with self.subTest(body=body), patch.object(
+                workshop, "urlopen", return_value=FakeResponse(body)
+            ) as http:
+                with self.assertRaisesRegex(ValueError, "No city found"):
+                    workshop.get_weather(location="NotARealCity")
+                http.assert_called_once()
 
-        mocked_urlopen.assert_not_called()
+    def test_get_weather_rejects_invalid_locations_before_http(self):
+        for location in ("", "  ", None, 123):
+            with self.subTest(location=location), patch.object(workshop, "urlopen") as http:
+                with self.assertRaises(ValueError):
+                    workshop.get_weather(location=location)
+                http.assert_not_called()
 
     def test_get_weather_rejects_incomplete_api_data(self):
-        response = weather_response()
-        del response["current"]["precipitation"]
+        invalid_matches = (
+            {"results": "invalid"}, {"results": [None]},
+            {"results": [{"name": "Vancouver"}]},
+            {"results": [{"name": "", "latitude": 49, "longitude": -123}]},
+            {"results": [{"name": "Vancouver", "latitude": True, "longitude": -123}]},
+            {"results": [{"name": "Vancouver", "latitude": 91, "longitude": -123}]},
+        )
+        for body in invalid_matches:
+            with self.subTest(body=body), patch.object(
+                workshop, "urlopen", return_value=FakeResponse(body)
+            ) as http:
+                with self.assertRaises(RuntimeError):
+                    workshop.get_weather(location="Vancouver")
+                http.assert_called_once()
+        for field in ("current", "current_units", "timezone", "precipitation"):
+            body = weather_response()
+            if field == "precipitation":
+                del body["current"][field]
+            else:
+                del body[field]
+            with self.subTest(field=field), patch.object(workshop, "urlopen", side_effect=[
+                FakeResponse(geocoding_response()), FakeResponse(body),
+            ]):
+                with self.assertRaises(RuntimeError):
+                    workshop.get_weather(location="Vancouver")
 
-        with patch.object(workshop, "urlopen", return_value=FakeResponse(response)):
-            with self.assertRaises(RuntimeError):
-                workshop.get_weather(location="Vancouver")
+    def test_get_weather_reports_api_failures_without_another_request(self):
+        for phase in ("Geocoding", "Weather"):
+            for failure in ("http", "network", "timeout", "json"):
+                if failure == "http":
+                    response = HTTPError("https://example.test", 503, "Unavailable", {}, None)
+                elif failure == "network":
+                    response = URLError("Unavailable")
+                elif failure == "timeout":
+                    response = TimeoutError()
+                else:
+                    response = io.BytesIO(b"not JSON")
+                replies = [response] if phase == "Geocoding" else [FakeResponse(geocoding_response()), response]
+                with self.subTest(phase=phase, failure=failure), patch.object(
+                    workshop, "urlopen", side_effect=replies
+                ) as http:
+                    with self.assertRaisesRegex(RuntimeError, phase + " API"):
+                        workshop.get_weather(location="Vancouver")
+                    self.assertEqual(http.call_count, len(replies))
 
     def test_dispatch_tool_calls_the_allowed_tool(self):
         expected = {"location": "Vancouver", "source": "test"}

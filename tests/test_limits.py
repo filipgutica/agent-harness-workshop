@@ -90,7 +90,7 @@ class HarnessSafetyTests(unittest.TestCase):
         for source, error in (
             ("model", RuntimeError("Model API unavailable")),
             ("weather", RuntimeError("Weather API unavailable")),
-            ("weather", ValueError("Weather supports only Vancouver")),
+            ("weather", ValueError("No city found.")),
         ):
             with self.subTest(source=source, error=error):
                 with patch.object(workshop, "call_model") as model, patch.object(

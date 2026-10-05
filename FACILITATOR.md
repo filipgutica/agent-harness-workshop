@@ -38,7 +38,7 @@ Before presenting:
 | JSON prompt | 6 | A tool request is still just text. | Output contains a JSON `tool-call`. |
 | Tool execution | 7 | Python validates the request and fetches weather. | Output contains weather data. |
 | Agent loop | 10 | Add both the model request and tool result to history. | Weather data is followed by a final answer. |
-| Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 26 tests pass. |
+| Formatting retries | 10 | Send validation feedback, with two correction attempts per action. | Students can distinguish both limits; 28 tests pass. |
 | Discussion | 3 | Explain what the harness owns. | Students can explain who executes the tool. |
 
 Each of the four edits leaves a runnable program. Intermediate commits are optional; students commit the completed core after step 4.
@@ -47,7 +47,10 @@ Keep the same command, `python workshop.py`, throughout.
 
 Use **What is the temperature in Vancouver right now?** at every stage.
 Before each run, ask students to predict the output. Pause for them to save, run, and compare it with the README.
-After step 3, use **What is a Python dictionary?** to show that a direct answer skips the tool.
+After step 3, try **What is the weather in Tokyo right now?** to show that the tool resolves other cities.
+Explain that one `get_weather` call performs two HTTP requests: geocoding, then forecast. These are not two agent loop iterations.
+The tool uses the first city match; add a country or region for ambiguous names and check the resolved location in the result.
+Then use **What is a Python dictionary?** to show that a direct answer skips the tool.
 Ask students to check one claim in that answer. Valid JSON and schema compliance do not guarantee factual accuracy.
 
 Point to these boundaries as you teach:
@@ -82,7 +85,7 @@ Appending data only changes the local list. The next HTTP request sends the upda
 ## Verification and troubleshooting
 
 The setup suite runs 14 tests against the supplied helpers and CLI.
-Run the complete 26-test suite only after step 4:
+Run the complete 28-test suite only after step 4:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -134,7 +137,7 @@ The API does not run the weather tool merely because a response matches the sche
 This is a production technique for response formatting, while native tool calling remains a separate API interface.
 See [Groq's schema requirements](https://console.groq.com/docs/structured-outputs) before changing the example.
 
-The offline suite contains 26 tests and works after either bonus mode.
+The offline suite contains 28 tests and works after either bonus mode.
 Its fake replies do not prove live schema enforcement. Compare the live `Model reply (raw):` output with the supplied schema.
 Apply the bonus after the retry step on the student's branch from `main`.
 
