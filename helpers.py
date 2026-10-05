@@ -44,7 +44,7 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     Read the API key and optional model override from the terminal environment.
     Forward response_format when the optional exercise requests JSON or a schema.
     Without it, use ordinary text output for the core exercise.
-    Trace the outgoing message count, roles, and latest content, then show
+    Trace the outgoing message count, named roles, and latest content, then show
     when the request waits for and receives a reply. Never log HTTP headers.
     Raise RuntimeError if the request fails or the reply has no usable text.
     This function does not interpret tool requests or execute tools.
@@ -73,12 +73,23 @@ def call_model(messages: list[dict[str, str]], *, response_format: dict | None =
     )
     # Appending messages changes a Python list, not the remote model's state.
     # Every HTTP request resends the full list, including any new tool result.
-    roles = " -> ".join(message["role"] for message in messages)
+    # These teaching labels explain API roles; the request still uses system/user/assistant.
+    role_labels = {
+        "system": "SYSTEM_PROMPT",
+        "user": "USER_MESSAGE",
+        "assistant": "ASSISTANT_MESSAGE",
+        "tool": "TOOL_MESSAGE",
+    }
+    message_labels = " + ".join(
+        f"[{role_labels.get(message['role'], message['role'].upper())}]"
+        for message in messages
+    )
     noun = "message" if len(messages) == 1 else "messages"
-    print_log("Harness", f"sending {len(messages)} {noun}: {roles} to {payload['model']}.")
+    print_log("Harness", f"sending {message_labels} to {payload['model']} ({len(messages)} {noun}).")
     if messages:
         latest = messages[-1]
-        print_log("Model input (latest message)", f"[{latest['role']}]\n{latest['content']}")
+        label = role_labels.get(latest["role"], latest["role"].upper())
+        print_log("Model input (latest message)", f"[{label}]\n{latest['content']}")
     print_log("Harness", "waiting for the model reply...")
     try:
         with urlopen(request, timeout=30) as response:
@@ -187,7 +198,7 @@ def dispatch_tool(action: dict) -> dict:
 
     Check the tool name and its arguments, then return the tool's result.
     Raise ValueError for an unknown tool or invalid arguments. The registry
-    below is the list of functions the model may request; Python runs them.
+    below is the list of functions the model may request; the harness runs them.
     """
     tools = {"get_weather": get_weather}
     tool_name = action["tool"]

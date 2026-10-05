@@ -64,7 +64,7 @@ Use that difference to explain why a tool call and an agent loop are separate co
 
 Read the terminal labels aloud when comparing stages:
 
-- `Model reply (raw):` is text from the LLM, before Python parses it.
+- `Model reply (raw):` is text from the LLM, before the harness parses it.
 - `Model input (latest message):` shows the newest message sent in the full conversation.
 - `Harness:` explains the harness's validation, tool execution, and formatting retries.
 - `Tool result (data):` is data from the executed tool, added to the conversation in steps 3 and 4.
@@ -74,9 +74,10 @@ In steps 0 and 1, `Output:` is the model's unchanged text. In step 2, it is resp
 From step 3 onward, a successful `Output:` is response content after any tool calls.
 For a direct answer, the raw JSON and final text come from the same model reply.
 For weather, step 3 adds a second model call so the model can turn tool data into an answer.
-Point to the trace changing from two messages to four: system instructions, the question, the model's request, and tool data.
+Use the README glossary before the demo. Connect `[SYSTEM_PROMPT]` to instructions and `[USER_MESSAGE]` to the question.
+Point to the next request including `[ASSISTANT_MESSAGE]` and another `[USER_MESSAGE]`: the model's tool request and the tool data.
+Explain that these labels map to API roles; our user-role tool result is a teaching convention, not a native `tool` message.
 Appending data only changes the local list. The next HTTP request sends the updated history to Groq and waits for its reply.
-Internal messages are indented, with colored labels; final output stays at the left edge. `NO_COLOR` keeps the same layout without colors.
 
 ## Verification and troubleshooting
 

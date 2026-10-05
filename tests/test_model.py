@@ -14,31 +14,37 @@ from tests.support import FakeResponse
 class CallModelTests(unittest.TestCase):
     def test_call_model_traces_the_follow_up_conversation_and_reply(self):
         tool_result = '{"tool_result":{"tool":"get_weather","result":{"temperature":16.5}}}'
-        messages = [
+        history = [
             {"role": "system", "content": "Use the provided data."},
             {"role": "user", "content": "Weather?"},
             {"role": "assistant", "content": '{"action":"tool-call","tool":"get_weather"}'},
             {"role": "user", "content": tool_result},
         ]
-        output = io.StringIO()
+        cases = (
+            (history[:2], "[SYSTEM_PROMPT] + [USER_MESSAGE]", "Weather?"),
+            (history, "[SYSTEM_PROMPT] + [USER_MESSAGE] + [ASSISTANT_MESSAGE] + [USER_MESSAGE]", tool_result),
+        )
+        for messages, labels, latest_content in cases:
+            with self.subTest(message_count=len(messages)):
+                output = io.StringIO()
 
-        def respond(request, *, timeout):
-            print("HTTP request sent")
-            self.assertEqual(json.loads(request.data)["messages"], messages)
-            return FakeResponse({"choices": [{"message": {"content": "It is 16.5 C."}}]})
+                def respond(request, *, timeout):
+                    print("HTTP request sent")
+                    self.assertEqual(json.loads(request.data)["messages"], messages)
+                    return FakeResponse({"choices": [{"message": {"content": "It is 16.5 C."}}]})
 
-        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}), patch.object(
-            workshop, "urlopen", side_effect=respond
-        ), redirect_stdout(output):
-            result = workshop.call_model(messages)
+                with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}, clear=True), patch.object(
+                    workshop, "urlopen", side_effect=respond
+                ), redirect_stdout(output):
+                    result = workshop.call_model(messages)
 
-        trace = output.getvalue()
-        self.assertEqual(result, "It is 16.5 C.")
-        self.assertIn("4 messages: system -> user -> assistant -> user", trace)
-        self.assertIn("  Model input (latest message): [user]\n    " + tool_result, trace)
-        self.assertLess(trace.index("waiting for the model reply"), trace.index("HTTP request sent"))
-        self.assertLess(trace.index("HTTP request sent"), trace.index("received the model reply"))
-        self.assertNotIn("test-key", trace)
+                trace = output.getvalue()
+                self.assertEqual(result, "It is 16.5 C.")
+                self.assertIn(f"sending {labels} to openai/gpt-oss-120b ({len(messages)} messages).", trace)
+                self.assertIn("Model input (latest message): [USER_MESSAGE]\n    " + latest_content, trace)
+                self.assertLess(trace.index("waiting for the model reply"), trace.index("HTTP request sent"))
+                self.assertLess(trace.index("HTTP request sent"), trace.index("received the model reply"))
+                self.assertNotIn("test-key", trace)
 
     def test_call_model_defaults_to_groq_gpt_oss_120b(self):
         response = FakeResponse({"choices": [{"message": {"content": "Hello"}}]})
