@@ -7,7 +7,8 @@ By the end, you will see how the harness turns a model's tool request into an ac
 Step 6 is an optional extension for extra time or after class.
 
 **Start here:** follow [SETUP.md](SETUP.md) to clone the repo, create your own branch, and check your API access.
-Then return here for the in-class exercise. You should know functions, dictionaries, conditionals, loops, and basic Git commands.
+Then return here for the in-class exercise. You should know functions, dictionaries, conditionals, and loops.
+The setup and checkpoint instructions explain the Git commands you will need.
 
 | File | Your role |
 | --- | --- |
@@ -60,7 +61,14 @@ We do not encode tool requests inside ordinary answer text.
 
 ## 0. Try the starter — 4 minutes
 
-With setup complete and your `my-workshop` branch checked out, run:
+Use the terminal from setup, inside the `agent-harness-workshop` folder.
+Confirm that you are on your exercise branch:
+
+```bash
+git status
+```
+
+Expect `On branch my-workshop`. Then start the program:
 
 ```bash
 python workshop.py
@@ -76,8 +84,10 @@ The model has no weather tool yet. It may admit uncertainty or give a plausible 
 
 The CLI keeps prompting until `/exit`, `/quit`, Ctrl-C, or EOF (Ctrl-D on macOS/Linux).
 Each question starts a new conversation. Use `--prompt "your question"` to answer once and exit.
-Exit before terminal commands or restarting after edits. Save and run `python workshop.py` after each step, in the setup terminal where your API key is available.
-The intermediate Git checkpoints are optional; you can commit the completed exercise after step 4.
+At each step, type `/exit` to stop the program, edit and save `workshop.py`, then run `python workshop.py` again.
+Enter Python and Git commands in the terminal after the program stops, not at its `You:` prompt.
+Saving in your editor updates the file the program reads. A Git commit records a checkpoint of those saved changes.
+You can follow every coding step without committing. Step 4 includes an optional Git checkpoint.
 
 | Terminal label | What it shows |
 | --- | --- |
@@ -378,15 +388,41 @@ python -m unittest tests.test_limits.HarnessSafetyTests.test_format_answer_stops
 The trace shows the correction attempts and the test catches the expected exhaustion error.
 `OK` means the bound worked, not that the fake reply was valid.
 
-Commit your completed core exercise:
+### Optional: record a Git checkpoint
+
+After the checks pass, save `workshop.py` and stop the program with `/exit` if it is running.
+Run these commands in your terminal, inside the workshop folder.
+
+Check the branch and your saved changes:
+
+```bash
+git status
+```
+
+Expect `On branch my-workshop` and `modified: workshop.py` under `Changes not staged for commit`.
+If Git cannot record a commit because your name or email is missing, use [the setup instructions](SETUP.md#git-asks-for-your-name-or-email).
+
+Select the saved changes in `workshop.py` for the next commit. Git calls this **staging**:
 
 ```bash
 git add workshop.py
 ```
 
+Create the checkpoint. The text after `-m` describes what changed:
+
 ```bash
 git commit -m "Build native tool loop with bounded answer formatting"
 ```
+
+Check that Git recorded your changes:
+
+```bash
+git status
+```
+
+If `workshop.py` was the only changed file, expect `nothing to commit, working tree clean`.
+The commit stays on your computer; it does not upload your work to GitHub.
+You can continue editing after committing. Save, stage, and commit again whenever you want another checkpoint.
 
 ## 5. Explain what changed — 3 minutes
 

@@ -5,31 +5,61 @@ There are no Python packages to install. Complete these steps before class;
 account creation and software installation are outside the 40-minute exercise.
 If you need them, install [Python](https://www.python.org/downloads/) and [Git](https://git-scm.com/downloads/) before starting.
 
-## 1. Clone the repo and create your branch
+## 1. Get your own workshop copy
 
-Open a terminal in a directory where you keep projects. Run one code block at a time, in order.
+Use Terminal on macOS/Linux or PowerShell on Windows.
+Open it in a folder where you keep projects. Run one code block at a time, in order.
+Copy only the commands inside each block. Press Enter and wait for the command to finish before continuing.
 
-Clone the starter:
+Three Git terms used here:
+
+| Term | Meaning |
+| --- | --- |
+| Repository (repo) | The project files and their recorded history. |
+| Branch | A named line of history. You will work on a branch called `my-workshop`. |
+| Commit | A checkpoint of selected changes, recorded locally by Git. |
+
+Check that Git is installed:
+
+```bash
+git --version
+```
+
+Expect `git version` followed by a version number. If Git is missing, install it before continuing.
+The `git switch` command below requires Git 2.23 or newer.
+
+Download the starter and its history from GitHub. This creates a new folder called `agent-harness-workshop`:
 
 ```bash
 git clone --branch main https://github.com/filipgutica/agent-harness-workshop.git
 ```
 
-Move into the repo folder:
+Move this terminal into that folder. `cd` means "change directory":
 
 ```bash
 cd agent-harness-workshop
 ```
 
-Create your branch:
+Create and switch to your exercise branch. The `-c` option means "create":
 
 ```bash
 git switch -c my-workshop
 ```
 
-`main` is the starter. `my-workshop` is your local branch for the exercise; you do not need to push it to GitHub.
-Open the `agent-harness-workshop` folder in your editor. Keep this terminal open, in that folder, for the remaining steps.
-If you already have a copy with edits, use a separate directory for a fresh clone.
+Both branches start with the same files. Your commits will be recorded on `my-workshop`; `main` remains the starter.
+Confirm you are inside the repository and on your exercise branch:
+
+```bash
+git status
+```
+
+Expect `On branch my-workshop` and `nothing to commit, working tree clean`.
+If you see an error, use [troubleshooting](#troubleshooting) before continuing.
+
+Open this same `agent-harness-workshop` folder in your editor.
+Keep the terminal open in that folder for all remaining commands.
+You can complete the workshop locally. You do not need to fork the repository, push changes, or create a GitHub account.
+If you already have a copy with edits, clone into a different parent folder to keep that work.
 
 ## 2. Prepare Python
 
@@ -41,12 +71,6 @@ Check that Python is version 3.10 or newer:
 
 ```bash
 python3 --version
-```
-
-Check that Git is installed:
-
-```bash
-git --version
 ```
 
 Create the virtual environment:
@@ -67,12 +91,6 @@ Check that Python is version 3.10 or newer:
 
 ```powershell
 py -3 --version
-```
-
-Check that Git is installed:
-
-```powershell
-git --version
 ```
 
 Create the virtual environment:
@@ -169,7 +187,13 @@ During class, use this terminal to run the program; an editor's Run button may n
 | Formatting retries are exhausted after workshop step 4 | Check `FORMAT_PROMPT` and `format_answer` against README step 4. Do not keep increasing the retry limit. |
 | A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
 | Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
-| `my-workshop` branch already exists | Run `git switch my-workshop` to resume. |
+| `git` is not recognized or not found | Install Git, then reopen your terminal and start step 1 again. |
+| Git does not recognize `switch` | Update Git to version 2.23 or newer. |
+| Clone says the destination already exists | You already have a folder with that name. For a fresh start, clone from a different parent folder. Keep any existing edits. |
+| `fatal: not a git repository` | Open the cloned project folder in your terminal. Run `git status` there before continuing. |
+| `my-workshop` branch already exists | Run `git switch my-workshop` to resume, then `git status` to confirm the branch. |
+| `git status` says `On branch main` | Before editing, run `git switch -c my-workshop`. If the branch already exists, use `git switch my-workshop`. |
+| Commit says `nothing to commit` | Save `workshop.py` in your editor and run `git status`. If it is modified, run `git add workshop.py` before committing. A clean status means there are no new changes to record. |
 | Python cannot find `workshop.py` or `tests` | Run the command from the `agent-harness-workshop` folder. |
 | A new terminal cannot find `python` or your key | Activate `.venv` and repeat step 3 in that terminal. |
 | Git opens a pager | Press `q` to return to the terminal. |
@@ -188,7 +212,11 @@ In PowerShell:
 Remove-Item Env:GROQ_MODEL -ErrorAction SilentlyContinue
 ```
 
-If Git asks for your identity, run each command with your own details, then retry the commit.
+### Git asks for your name or email
+
+A commit records an author name and email. These identify the checkpoint; they are not a GitHub login.
+Run the commands below from the workshop folder, replacing the example values with your own.
+These settings apply only to this repository.
 
 Set your name:
 
@@ -201,6 +229,8 @@ Set your email:
 ```bash
 git config user.email "you@example.com"
 ```
+
+Then rerun the `git commit` command from the workshop instructions.
 
 [Groq API documentation](https://console.groq.com/docs/quickstart) · [Open-Meteo documentation](https://open-meteo.com/en/docs)
 

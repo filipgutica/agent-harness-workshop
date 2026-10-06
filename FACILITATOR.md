@@ -4,7 +4,8 @@
 
 Ask students to complete [SETUP.md](SETUP.md), including its live Groq check, before class.
 Pilot the README from a fresh clone. The target is **40 minutes**, not a measured completion time.
-The audience is **BCIT CST term 4**. Students need basic functions, dictionaries, conditionals, loops, and Git.
+The audience is **BCIT CST term 4**. Students need basic functions, dictionaries, conditionals, and loops.
+The instructions introduce the Git commands; do not assume students know branches, staging, or commits.
 
 ### Audience and learning goals
 
@@ -22,6 +23,7 @@ Before presenting:
 - Keep starter and completed copies in separate directories.
 - Pilot every README stage, including native weather requests and both optional output modes.
 - Confirm students have their branch, 15 passing setup tests, and a live greeting.
+- Ask students to run `git status` and find `On branch my-workshop` before editing.
 - Keep the setup terminal open so its environment and API key remain available.
 
 ## Schedule
@@ -36,6 +38,8 @@ Before presenting:
 | Discussion | 3 | Explain what the harness owns. | Students identify who executes tools. |
 
 Each edit leaves a runnable program. Use **What is the temperature in Vancouver right now?** at every stage.
+Distinguish editor saves from Git commits: saves update the runnable file; commits record checkpoints.
+The step 4 checkpoint is optional. Let students finish the harness exercise before helping with Git identity or commit errors.
 Ask students to predict output before running it. After step 3, try Tokyo and a direct-answer question.
 A weather tool call makes two GET requests: geocoding and forecast. They are not separate agent loop iterations.
 Use the resolved city to discuss ambiguous names and the first-match geocoding policy.
