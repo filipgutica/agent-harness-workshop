@@ -138,23 +138,26 @@ This uses Python's standard-library hidden prompt and makes the key available to
 
 ### Windows PowerShell
 
-Run one code block at a time. Enter your key through the hidden prompt:
+Run one code block at a time, in this same PowerShell terminal.
+Use Python's hidden prompt to make the key available to the workshop:
 
 ```powershell
-$secret = Read-Host "Groq API key" -AsSecureString
+$env:GROQ_API_KEY = (& .\.venv\Scripts\python.exe -c "import getpass; print(getpass.getpass('Groq API key: '))")
 ```
 
-Make the key available to Python:
+At `Groq API key:`, paste only your key, then press Enter.
+The terminal will not display the key as you type or paste it.
+This command uses the virtual environment's Python directly, even if activation is blocked.
+
+Verify that Python receives the key without displaying it:
 
 ```powershell
-$env:GROQ_API_KEY = [System.Net.NetworkCredential]::new('', $secret).Password
+.\.venv\Scripts\python.exe -c "import os; print('Key length:', len(os.environ.get('GROQ_API_KEY', '').strip()))"
 ```
 
-Remove the temporary variable:
-
-```powershell
-Remove-Variable secret
-```
+Expect `Key length:` followed by a number greater than zero.
+If it is zero, repeat the hidden-prompt command before continuing.
+A positive length confirms that Python receives a value; the live check below confirms whether the key works.
 
 The key belongs to this terminal session, not the virtual environment. Closing the terminal removes it;
 deactivating `.venv` does not. The application does not load `.env` files.
@@ -162,8 +165,18 @@ The supplied model is [`openai/gpt-oss-120b` on Groq](https://console.groq.com/d
 
 ## 4. Check setup
 
+Run the command for your operating system in the same terminal where you set the key.
+
+### macOS / Linux
+
 ```bash
 python workshop.py --prompt "Reply with: ready"
+```
+
+### Windows PowerShell
+
+```powershell
+.\.venv\Scripts\python.exe workshop.py --prompt "Reply with: ready"
 ```
 
 This command makes one live model request. Expect `Output:` followed by the model's text without an error.
