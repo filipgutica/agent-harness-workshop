@@ -1,120 +1,137 @@
 # Facilitator notes
 
-## Before teaching
+## Before class
 
-Ask students to complete [SETUP.md](SETUP.md), including its live Groq check, before class.
-Pilot the README from a fresh clone. The target is **40 minutes**, not a measured completion time.
-The audience is **BCIT CST term 4**. Students need basic functions, dictionaries, conditionals, and loops.
-The instructions introduce the Git commands; do not assume students know branches, staging, or commits.
+Have students complete [SETUP.md](SETUP.md), including the live Groq check.
+Keep that terminal open; it holds their API key.
+The audience is BCIT CST term 4. Students need basic functions, dictionaries, conditionals, and loops.
+Do not assume Git experience. Students can complete the coding lesson without commits.
 
-### Audience and learning goals
+Rehearse the README from a fresh starter copy. **40 minutes is a target, not a measured completion time.**
+Keep your completed reference copy separate from the student starter.
+Students edit `workshop.py`; the supplied helpers handle HTTP, validation, and terminal input.
 
-The [BCIT CST curriculum](https://www.bcit.ca/programs/computer-systems-technology-diploma-full-time-5500dipma/#courses)
-places procedural and object-oriented programming before term 4. Internet Software Architecture (COMP 4537), including HTTP and REST, is in term 4.
-Use that background to connect the harness to familiar ideas: input validation, function dispatch, state, and exception handling.
-Students may still be taking the API course and have different specializations. Introduce the model's message protocol explicitly.
+## Start at the whiteboard
 
-By the end, students should trace a native tool request to an allowed function, link its result by ID, and explain the model's next request.
-They should distinguish the tool loop from a separate answer-formatting retry loop.
-Students edit only `workshop.py`; supplied helpers own HTTP, validation, and CLI handling.
-
-Before presenting:
-
-- Keep starter and completed copies in separate directories.
-- Pilot every README stage, including native weather requests and both optional output modes.
-- Confirm students have their branch, 15 passing setup tests, and a live greeting.
-- Ask students to run `git status` and find `On branch my-workshop` before editing.
-- Keep the setup terminal open so its environment and API key remain available.
-
-## Schedule
-
-| Part | Minutes | Teaching focus | Check before moving on |
-| --- | ---: | --- | --- |
-| Starter | 4 | System prompt, user question, assistant content. | Students find the model request. |
-| Native tool request | 6 | `tools` declaration and assistant `tool_calls`. | A weather request contains an ID and JSON argument text. |
-| Tool execution | 7 | Validate arguments and dispatch an allowed function. | Output shows weather data. |
-| Agent loop | 10 | Assistant request plus matching `tool` messages. | The next model call produces a weather answer. |
-| Formatting retries | 10 | Prompt-only JSON, local validation, bounded corrections. | Students distinguish both budgets; 30 tests pass. |
-| Discussion | 3 | Explain what the harness owns. | Students identify who executes tools. |
-
-Each edit leaves a runnable program. Use **What is the temperature in Vancouver right now?** at every stage.
-Distinguish editor saves from Git commits: saves update the runnable file; commits record checkpoints.
-The step 4 checkpoint is optional. Let students finish the harness exercise before helping with Git identity or commit errors.
-Ask students to predict output before running it. After step 3, try Tokyo and a direct-answer question.
-A weather tool call makes two GET requests: geocoding and forecast. They are not separate agent loop iterations.
-Use the resolved city to discuss ambiguous names and the first-match geocoding policy.
-[Open-Meteo's current weather is a model estimate](https://open-meteo.com/en/docs#current).
-
-## Explain the boundaries
-
-- `call_model` returns an assistant message dictionary, not just its text. It preserves native `tool_calls` and strips server metadata.
-- `dispatch_tool` decodes argument JSON, validates the function and arguments, and executes the allowlisted function.
-- `run_agent` records assistant replies and matching `tool` results, resends history, and enforces `MAX_STEPS`.
-- `parse_answer` checks the final JSON answer's syntax, fields, and nonempty string.
-- `format_answer` handles formatting separately; `answer_question` connects the phases.
-
-The model requests a tool but cannot execute the local function itself.
-The tool declaration's argument schema and final-answer schema have different purposes.
-The former describes a callable interface; the latter constrains the answer's structure.
-Local argument validation is still required before dispatch.
-
-Read the message trace with students:
+Write this sequence:
 
 ```text
-[SYSTEM_PROMPT] + [USER_MESSAGE] + [ASSISTANT_MESSAGE] + [TOOL_MESSAGE]
+Question -> model requests a tool -> harness runs it -> result -> model answers
 ```
 
-Show the assistant's `tool_calls[].id` and the matching `tool_call_id` on its result.
-Tool data comes from the harness. It is not a user message.
-Appending changes local history; the next HTTP request sends that history to the model.
-`Model reply (raw):` shows the assistant message before student processing, with server metadata omitted.
-`Output:` is the function's return value printed by the CLI, not another actor or implicit model request.
-Step 2 returns tool data; step 3 returns model-written text; step 4 explicitly adds a formatting request.
+Ask: "Which part executes the function?" The harness does.
+The model generates a request; it does not execute the local function.
 
-## Verify and rehearse
+Introduce only the roles needed for the first request: `system` instructions, `user` question, `assistant` reply.
+Introduce `tool` when returning the result in step 3.
+Use the README glossary when a term needs explanation.
 
-Setup runs 15 offline helper/CLI tests. Run all 30 tests only after README step 4:
+## Teaching sequence
 
-```bash
-python -m unittest discover -s tests -v
+| Part | Minutes | What students should see |
+| --- | ---: | --- |
+| 0. Starter | 4 | A greeting answer; no current weather data. |
+| 1. Native tool request | 6 | An assistant message containing `tool_calls`. No function has run yet. |
+| 2. Execute the tool | 7 | Weather data returned by the harness. No follow-up model call yet. |
+| 3. Return the result | 10 | A second model call turns the data into a weather answer. |
+| 4. Format the answer | 10 | A separate request produces `{"answer": "..."}`; invalid formatting is retried. |
+| 5. Discussion | 3 | Students explain who requests, executes, and answers. |
+
+Before each edit, have students type `/exit`. Then edit, save, and restart.
+Use **What is the temperature in Vancouver right now?** through all stages so the changed behavior is easy to compare.
+Use **hello** to show the path that needs no tool.
+Pause at each README **Check** before moving on.
+
+Imports are introduced when used: transport/CLI in step 1, dispatch/logging in step 2, answer validation in step 4.
+When a student gets stuck, compare the complete imports, constants, function, and CLI block with that stage.
+Keep one CLI entry point at the bottom. Constants and functions belong at the left edge, not inside another function.
+An old file using `parse_action` needs all step 1 replacements; changing that import alone is insufficient.
+
+## Explain the native tool loop
+
+In step 1, `TOOLS` describes a callable function and its arguments. The system prompt explains when to request it.
+An argument schema does not execute the function or format the final answer.
+`call_model` returns an assistant message dictionary. A tool request can have `content: None`.
+
+In step 2, `dispatch_tool` checks the function name, parses arguments, and runs only the allowed function.
+`get_weather` makes two GET requests: Open-Meteo geocoding for coordinates, then a forecast request.
+These are work inside one agent iteration, not two model calls.
+The first matching city is used. Ask students to check the resolved location; try Tokyo after Vancouver.
+[Open-Meteo's current weather is a model estimate](https://open-meteo.com/en/docs#current).
+
+In step 3, show these adjacent messages in the trace:
+
+```text
+[ASSISTANT_MESSAGE] with tool_calls[].id
+[TOOL_MESSAGE] with the same tool_call_id
 ```
 
-Tests use fake responses. They prove protocol handling and limits, not live model behavior or factual accuracy.
-Compare live weather answers with the tool data, including location, units, timestamp, timezone, and source.
-Check [model access](https://console.groq.com/docs/models) and [rate limits](https://console.groq.com/docs/rate-limits) before class.
-A greeting alone does not verify native tool calling or strict output support. Rehearse those requests separately.
-The default model is `openai/gpt-oss-120b`; pilot all stages if you override it.
-Each student uses their own key. For access failures, use [SETUP troubleshooting](SETUP.md#troubleshooting) or pair students.
+Both must stay in history. A reply can request multiple calls; each ID needs a result before the next model request.
+Appending to `messages` changes a local list. The next HTTP request sends the entire updated list.
+Tool data is supplied by the harness, so it uses the `tool` role.
 
-For an offline correction-loop demonstration after step 4:
+**One agent iteration means one model call in that loop.**
+A greeting usually takes one; weather usually takes two.
+`MAX_STEPS = 5` is an upper bound, not five required steps or five JSON parsing attempts.
+API and tool failures end the question immediately.
+Each new CLI question starts fresh; a missing-city clarification must be followed by the full question with its city.
+
+`Output:` is what the student's function returns, printed by `run_cli`.
+Step 2 returns data. Step 3 returns model-written answer text.
+There is no hidden model call after `Output:`.
+
+## Keep formatting separate
+
+Step 3 already completes native tool calling. Step 4 adds a new request to format the finished answer.
+`format_answer` has no tools. `parse_answer` requires exactly one nonempty string field named `answer`.
+Correction feedback uses the `user` role because it is feedback, not a tool result.
+
+`MAX_RETRIES = 2` allows one initial formatting request and two corrections.
+Only invalid formatting is retried; API failures propagate.
+A successful weather question usually takes three model calls at this stage: request, answer, format.
+The maximum is eight calls: five in the tool loop plus three in formatting.
+Check the formatted facts against the tool data; valid JSON does not prove factual accuracy.
+
+For a predictable retry demonstration after step 4:
 
 ```bash
 python -m unittest tests.test_limits.HarnessSafetyTests.test_format_answer_stops_after_the_maximum_number_of_retries -v
 ```
 
-The deliberately invalid reply exhausts the budget; the test catches the error.
-`MAX_RETRIES = 2` means three formatting attempts after the tool loop.
-`MAX_STEPS = 5` means at most five requests within the tool loop.
-A direct answer ends the loop after one iteration; weather normally takes two.
-Step 4 adds one formatting call on success. The maximum is eight model requests per question.
-API and tool failures never enter the format-correction loop.
+The fake reply is deliberately invalid. `OK` means the test confirmed the stopping bound.
+On Windows, use `.\.venv\Scripts\python.exe` instead of `python` in these commands.
 
-## Optional schema extension
+## Verify the lesson
 
-[README step 6](README.md#6-optional-enforce-a-json-schema) is outside the 40-minute core schedule.
-Present it as a way to replace increasingly complex prompt-only formatting and correction logic.
-JSON mode guarantees syntax; strict Structured Outputs guarantees a supported schema for successful, complete replies.
-Supplying a schema with `strict: false` gives best-effort adherence.
-[Groq currently cannot combine Structured Outputs with tool use](https://console.groq.com/docs/structured-outputs), so use the separate formatting request.
-The strict example removes the correction loop and `MAX_RETRIES`; retain parsing, application validation, and API/truncation handling.
-The example schema permits an empty string, while the local validator rejects it. Schema adherence alone does not prove facts.
+Setup checks **15 tests**. After step 4, run all **30 tests**:
 
-Step 4's formatter-retry tests no longer describe the strict formatter. The README gives the 24 unchanged helper/native-agent checks to run instead.
-Then rehearse the strict request live; mock tests cannot establish the provider guarantee.
+```bash
+python -m unittest discover -s tests -v
+```
 
-## Prepare an instructor copy
+Tests use fake replies. They verify harness behavior, not live provider behavior or weather accuracy.
+Rehearse a greeting, a weather question, and optional output modes with live requests separately.
+Check [model access](https://console.groq.com/docs/models) and [rate limits](https://console.groq.com/docs/rate-limits).
+The default is `openai/gpt-oss-120b`; rehearse all stages if you change it.
+Each student uses their own key. For access failures, use [SETUP troubleshooting](SETUP.md#troubleshooting) or pair students.
 
-Use current `main` for a starter with compatible helpers. Create a separate reference worktree:
+The Git checkpoint in step 4 is optional. Saving makes code runnable; committing records a checkpoint.
+Let students finish the lesson before spending time on Git identity or commit errors.
+
+## Optional strict schema lesson
+
+[README step 6](README.md#6-optional-enforce-a-json-schema) is outside the core schedule.
+Compare prompt-only JSON, JSON mode, and a strict schema.
+[Groq Structured Outputs](https://console.groq.com/docs/structured-outputs) currently cannot be combined with tools; apply it to the separate formatter.
+The strict version removes the correction loop and `MAX_RETRIES`.
+It guarantees the supported schema for successful, complete replies, not correct facts.
+Keep local validation and API/truncation handling. The example schema allows an empty string; the local validator rejects it.
+
+The retry tests no longer apply after that replacement. Use the README's **24 unchanged helper and agent checks**, then rehearse strict output live.
+
+## Prepare an instructor reference
+
+Use current `main` with its compatible helpers. Create a separate reference copy:
 
 ```bash
 git worktree add --detach ../agent-harness-workshop-reference main
@@ -124,5 +141,5 @@ git worktree add --detach ../agent-harness-workshop-reference main
 cd ../agent-harness-workshop-reference
 ```
 
-Follow README steps 1–4 in order, then run the complete offline suite and a live weather question.
-The historical `solution` branch uses the older custom text protocol; it is not the solution for this native-tool workshop.
+Follow README steps 1–4, then run the full suite and a live weather question.
+The historical `solution` branch uses an older custom text protocol; use the current README for this native-tool lesson.
