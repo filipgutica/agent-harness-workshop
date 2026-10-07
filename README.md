@@ -4,17 +4,17 @@ You will build a program that asks an LLM for help, runs a weather tool, and giv
 The model requests the tool. Your harness runs it.
 
 **About 30 minutes after setup · Python · Groq · BCIT CST term 4**
-Step 5 is an optional extension.
+Steps 1–4 form the core lesson. Step 5 is an optional extension.
 
 Complete [SETUP.md](SETUP.md) first. You need basic functions, dictionaries, conditionals, and loops.
 You do not need Git experience; setup explains the commands.
 
 | Step | What your program can do afterward |
 | --- | --- |
-| 0 | Ask the model a question. |
-| 1 | Receive a native tool request. |
-| 2 | Execute the requested tool and display its data. |
-| 3 | Give the data back to the model and receive an answer. |
+| 1 | Ask the model a question. |
+| 2 | Receive a native tool request. |
+| 3 | Execute the requested tool and display its data. |
+| 4 | Give the data back to the model and receive an answer. |
 | 5, optional | Enforce a JSON schema for the final answer. |
 
 **Edit only `workshop.py`.** The supplied `helpers.py` handles HTTP, validation, and terminal input.
@@ -25,17 +25,20 @@ Leave the test files unchanged.
 | Term | Meaning |
 | --- | --- |
 | **Harness** | The code that calls the model, runs allowed tools, and decides what happens next. |
+| **CLI (command line interface)** | The terminal interface that reads your question and prints the returned value. |
 | **Model / LLM** | The language model that generates a reply. Groq hosts it for this workshop. |
 | **Assistant** | The model's role in the conversation. It can answer or request a tool. |
 | **Tool** | A function the harness can run. Our `get_weather` tool looks up weather data. |
 | **Tool call** | A request from the model to run a tool with specific arguments. |
 | **Tool result** | The data returned by that function. |
 | **System prompt** | Instructions for the model, stored here in `SYSTEM_PROMPT`. |
-| **User message** | Your question. Later, the harness also uses this role for formatting feedback. |
+| **User message** | Your question. In step 5, the harness also uses this role to supply the answer text for formatting. |
 | **Message role** | The `role` field identifying the kind of message: `system`, `user`, `assistant`, or `tool`. |
 | **Conversation history** | The ordered `messages` list sent with each model request. |
 | **API** | An interface that lets one program request data or work from another service. |
 | **API call** | A request to that service. Our harness calls Groq; the weather tool calls Open-Meteo. |
+| **JSON** | A text format for data. `json.loads` reads JSON into Python values; `json.dumps` converts Python values to JSON text. |
+| **JSON schema** | Rules for JSON data, such as required fields and their types. |
 
 A tool call is a request to run a function. An API call is a request to a service.
 A tool can call an API, or do local work such as adding two numbers.
@@ -43,11 +46,12 @@ A tool can call an API, or do local work such as adding two numbers.
 ### Message roles
 
 Each message is a dictionary. `message["role"]` identifies its role; `message["content"]` holds its text.
+An assistant tool request can have `content: None` and a separate `tool_calls` field.
 
 | Message `role` | Trace label | Who supplies it? |
 | --- | --- | --- |
 | `system` | `[SYSTEM_PROMPT]` | The harness supplies instructions. |
-| `user` | `[USER_MESSAGE]` | You supply a question; the harness can also supply formatting feedback. |
+| `user` | `[USER_MESSAGE]` | You supply a question; in step 5, the harness supplies the answer text for formatting. |
 | `assistant` | `[ASSISTANT_MESSAGE]` | The model supplies an answer or a tool request. |
 | `tool` | `[TOOL_MESSAGE]` | The harness supplies the result of an executed tool. |
 
@@ -58,7 +62,7 @@ This workshop uses [native tool calling](https://console.groq.com/docs/tool-use/
 We declare tools in the API request. The model returns requests in an assistant message's `tool_calls` field.
 The harness returns results using the `tool` role.
 
-## 0. Try the starter — 4 minutes
+## 1. Try the starter — 4 minutes
 
 ### Run
 
@@ -114,7 +118,7 @@ Saving updates the runnable file. A Git commit records a checkpoint; you do not 
 
 **Explain:** what would the harness need to add to answer a current-weather question?
 
-## 1. Ask for a tool request — 6 minutes
+## 2. Ask for a tool request — 6 minutes
 
 **Goal:** let the model request `get_weather`. We will display the request before executing it.
 
@@ -186,12 +190,12 @@ if __name__ == "__main__":
 
 ### Run
 
-Save the file and restart the program using the command from step 0.
+Save the file and restart the program using the command from step 1.
 Ask **What is the temperature in Vancouver right now?**
 
 ### Check
 
-Expect a request like this. The ID and exact arguments can vary:
+Expect a request like this under `Model reply (raw):`. The ID and exact arguments can vary:
 
 ```json
 {
@@ -210,6 +214,7 @@ Expect a request like this. The ID and exact arguments can vary:
 
 Read it as: **"Please run `get_weather(location='Vancouver')`. This request's ID is `call_example`."**
 The model has requested work; no weather lookup has happened yet.
+The same message appears under `Output:` because this version of `run_agent` returns the whole assistant message.
 
 `call_model` returns a dictionary. A tool request is in `reply["tool_calls"]`; `reply["content"]` can be `None`.
 The function's `arguments` field contains JSON text, so its quotes appear escaped.
@@ -219,7 +224,7 @@ Try **hello** too. Expect an assistant message with ordinary `content` and no to
 
 **Explain:** who will execute `get_weather`?
 
-## 2. Run the requested tool — 7 minutes
+## 3. Run the requested tool — 7 minutes
 
 **Goal:** execute the request and display weather data.
 
@@ -256,7 +261,7 @@ def run_agent(question):
         results.append(result)
 
     print_log("Harness", "returning raw tool data; it has not been sent back to the model.")
-    # Step 3 will send these results back to the model.
+    # Step 4 will send these results back to the model.
     return json.dumps(results, indent=2, ensure_ascii=False)
 ```
 
@@ -283,7 +288,7 @@ An unmatched city ends the question with an error.
 
 **Explain:** why can't the model write a weather summary from this tool data yet?
 
-## 3. Return the result to the model — 10 minutes
+## 4. Return the result to the model — 10 minutes
 
 **Goal:** let the model answer using the weather data. This completes the native tool loop.
 
@@ -359,7 +364,8 @@ If the assistant requests several calls, add a result for every ID before asking
 Adding to `messages` changes a local list. Only the next `call_model` sends that list to the model.
 Tool results use the `tool` role because the harness supplied them.
 
-**One iteration means one model call in this loop.** It is not a retry to parse JSON.
+**One iteration means one model call in this loop.**
+`MAX_STEPS` limits calls for each question; it is unrelated to the numbered workshop steps.
 A greeting usually finishes in one iteration; weather usually takes two.
 The weather tool's two GET requests happen inside one iteration.
 Five iterations is the upper limit, not a target. API or tool errors end the question immediately.
@@ -379,7 +385,7 @@ python -m unittest discover -s tests -v
 
 On Windows, use `.\.venv\Scripts\python.exe` instead of `python` in test commands too.
 Expect **27 tests, OK**. They use fake model and weather replies; no API key is needed.
-Some tests require the completed code from step 3 and will fail on earlier stages.
+Some tests require the completed code from step 4 and will fail on earlier stages.
 
 ### Optional: record a Git checkpoint
 
@@ -409,7 +415,7 @@ git status
 
 If `workshop.py` was your only changed file, expect a clean working tree.
 
-## 4. Explain what changed — 3 minutes
+## Explain what changed — 3 minutes
 
 You should now be able to:
 
@@ -439,7 +445,8 @@ We will finish the tool loop, then make one separate request to enforce the answ
 from helpers import call_model, dispatch_tool, parse_answer, print_log, run_cli
 ```
 
-**2. Keep everything from step 3. Add this constant and function below `run_agent`, above the CLI entry point:**
+**2. Keep everything from step 4. Add this constant and function below `run_agent`, above the CLI entry point:**
+Put them at the left edge of the file, outside `run_agent`:
 
 ```python
 RESPONSE_FORMAT = {
@@ -509,15 +516,13 @@ The schema permits an empty string; `parse_answer` also requires a nonempty answ
 It checks structure, not facts. Compare the answer with the tool data.
 The helper still reports API failures and truncated replies.
 
-Run the same **27 offline tests** from step 3.
+Run the same **27 offline tests** from step 4.
 They check the helpers and tool loop; only a live request exercises the provider's schema enforcement.
 
 ## Stuck?
 
 Compare the imports, constants, functions, and CLI entry point with your current step.
-If an older copy imports `parse_action`, redo all replacements in step 1 before continuing.
-That old custom-JSON tool protocol is incompatible with the current native-tool helpers.
-`parse_answer` validates the optional schema lesson's final answer; it does not handle tool requests.
+Check that you saved `workshop.py` and restarted the program after your edit.
 
 For setup or API errors, use [SETUP.md troubleshooting](SETUP.md#troubleshooting).
 The instructor can use [FACILITATOR.md](FACILITATOR.md) for rehearsal notes.

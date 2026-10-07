@@ -185,7 +185,7 @@ The wording can vary. Resolve any error before class.
 You are ready when you have your own branch, passing offline checks, and a successful live reply.
 During class, use this terminal to run the program; an editor's Run button may not have your API key.
 
-**Next: [start the workshop](README.md#0-try-the-starter--4-minutes).**
+**Next: [start the workshop](README.md#1-try-the-starter--4-minutes).**
 
 ## Troubleshooting
 
