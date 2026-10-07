@@ -1,4 +1,4 @@
-from helpers import call_model, run_cli
+from helpers import call_model, print_log, run_cli
 
 
 SYSTEM_PROMPT = "You are a helpful assistant."
@@ -13,6 +13,7 @@ def run_agent(question):
     ]
     # 2. Send these messages. The helper returns an assistant message dictionary.
     reply = call_model(messages)
+    print_log("Model reply (raw)", str(reply))
     # 3. Return its answer text for the CLI to print.
     return reply["content"]
 

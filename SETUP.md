@@ -2,7 +2,7 @@
 
 You need **Python 3.10+**, **Git**, a **Groq API key**, and internet access.
 There are no Python packages to install. Complete these steps before class;
-account creation and software installation are outside the 40-minute exercise.
+account creation and software installation are outside the 30-minute exercise.
 If you need them, install [Python](https://www.python.org/downloads/) and [Git](https://git-scm.com/downloads/) before starting.
 
 ## 1. Get your own workshop copy
@@ -197,7 +197,6 @@ During class, use this terminal to run the program; an editor's Run button may n
 | HTTP 403 or unavailable model | Check your account's model access in Groq Console. |
 | HTTP 429 | Pause live calls and check [Groq limits](https://console.groq.com/docs/rate-limits). Offline tests still work. |
 | Invalid tool arguments | Compare `TOOLS` and the prompt with the README. The harness validates arguments before execution. |
-| Formatting retries are exhausted after workshop step 4 | Check `FORMAT_PROMPT` and `format_answer` against README step 4. Do not keep increasing the retry limit. |
 | A step does not behave as described | Compare the entire `run_agent` function with that step's code block. |
 | Indentation error | Copy the whole function block, including its spaces. Do not use tabs. |
 | `git` is not recognized or not found | Install Git, then reopen your terminal and start step 1 again. |
